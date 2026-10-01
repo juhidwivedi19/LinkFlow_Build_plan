@@ -22,11 +22,11 @@ model user {
   emailVerificationExpires DateTime?
   emailVerificationToken   String?
   emailVerified            Boolean   @default(false)
-resetPasswordExpires   DateTime?
-resetPasswordToken    String?
-
+  resetPasswordExpires     DateTime?
+  resetPasswordToken       String?
 
   refreshTokens RefreshToken[]
+  memberships   Membership[]
 }
 
 model RefreshToken {
@@ -36,4 +36,36 @@ model RefreshToken {
   user      user     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   expiresAt DateTime
+}
+
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Membership {
+  id          Int  @id @default(autoincrement())
+  userId      Int
+  workspaceId Int
+  role        Role
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
 }
