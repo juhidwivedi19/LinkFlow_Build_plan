@@ -39,9 +39,9 @@ async function createWorkspaceController(req,res){
     }
 
     //create workspace + owner membership automatically
-    const workspace = await prisma.$transaction(async (txt) =>{
+    const workspace = await prisma.$transaction(async (tx) =>{
 
-        const workspace = await tx.workspace.create({
+        const newWorkspace = await tx.workspace.create({
             data:{
                 name: name.trim(),
                 slug: slug.trim().toLowerCase()
@@ -221,13 +221,25 @@ async function updateWorkspaceController(req,res){
 
         const updateData = {};
 
-        if(name) {
-            if(!slug.trim()){
+        if(name != undefined) {
+            if(!name.trim()){
                 return res.status(400).json({
-                    message: "Workspace slug cannot be empty",
+                    message: "Workspace name cannot be empty",
                     status:"failed"
                 });
             }
+
+               updateData.name = name.trim();
+}
+
+if (slug !== undefined) {
+
+    if (!slug.trim()) {
+        return res.status(400).json({
+            message: "Workspace slug cannot be empty",
+            status: "failed"
+        });
+    }
 
             const normalizedSlug = slug.trim().toLowerCase();
            

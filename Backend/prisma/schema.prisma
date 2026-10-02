@@ -46,6 +46,7 @@ model Workspace {
   updatedAt DateTime @updatedAt
 
   memberships Membership[]
+  links       Link[]
 }
 
 enum Role {
@@ -68,4 +69,24 @@ model Membership {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
+}
+
+model Link {
+  id  Int    @id @default(autoincrement())
+  url String //long URL
+
+  slug String @unique //short url
+
+  title       String
+  description String?
+
+  expiresAt DateTime?
+
+  passwordHash String?
+
+  workspaceId Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
