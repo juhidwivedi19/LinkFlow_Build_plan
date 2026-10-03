@@ -88,5 +88,27 @@ model Link {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+status LinkStatus @default(ACTIVE)
+analyticsEvents AnalyticsEvent[]
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum LinkStatus {
+  ACTIVE
+  DISABLED
+}
+
+model AnalyticsEvent{
+  id    Int   @id @default(autoincrement())
+   linkId     Int
+  ipAddress  String?
+  userAgent  String?
+  referrer   String?
+  createdAt  DateTime @default(now())
+
+  link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId])
+  @@index([createdAt])
 }

@@ -2,6 +2,11 @@ const prisma = require("../config/db.config.js");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 
+const {
+    getRedis,
+    setRedis,
+    deleteRedis
+} = require("../services/redis.service.js");
 
 //CREATE LINK CONTROLLER
 async function createLinkController(req, res) {
@@ -321,21 +326,22 @@ async function getLinkController(req, res) {
 
 //UPDATE LINK CONTROLLER
 async function updateLinkController(req, res) {
-   try{
-const userId = req.user.id;
-const workspaceId = Number(req.params.workspaceId);
-const linkId = Number(req.params.linkId);
+    try {
+        const userId = req.user.id;
+        const workspaceId = Number(req.params.workspaceId);
+        const linkId = Number(req.params.linkId);
 
-const {
+        const {
             url,
             slug,
             title,
             description,
             expiresAt,
-            password
+            password,
+            status
         } = req.body;
 
-         // Validate IDs
+        // Validate IDs
         if (
             !Number.isInteger(workspaceId) ||
             workspaceId <= 0 ||
@@ -348,7 +354,6 @@ const {
             });
         }
 
-
         // Check workspace membership
         const membership = await prisma.membership.findUnique({
             where: {
@@ -358,7 +363,6 @@ const {
                 }
             }
         });
-
 
         if (!membership) {
             return res.status(403).json({
@@ -375,13 +379,12 @@ const {
             }
         });
 
-         if (!existingLink) {
+        if (!existingLink) {
             return res.status(404).json({
                 message: "Link not found",
                 status: "failed"
             });
         }
-
 
         // Prepare update data
         const updateData = {};
@@ -395,7 +398,7 @@ const {
                 });
             }
 
-             try {
+            try {
                 new URL(url.trim());
             } catch {
                 return res.status(400).json({
@@ -407,7 +410,7 @@ const {
             updateData.url = url.trim();
         }
 
-           // Validate and update title
+        // Validate and update title
         if (title !== undefined) {
             if (!title.trim()) {
                 return res.status(400).json({
@@ -419,7 +422,7 @@ const {
             updateData.title = title.trim();
         }
 
-            // Update description
+        // Update description
         if (description !== undefined) {
             updateData.description = description
                 ? description.trim()
@@ -435,7 +438,7 @@ const {
                 });
             }
 
-              const newSlug = slug.trim().toLowerCase();
+            const newSlug = slug.trim().toLowerCase();
 
             if (newSlug !== existingLink.slug) {
                 const slugExists = await prisma.link.findUnique({
@@ -452,9 +455,8 @@ const {
                 }
             }
 
-              updateData.slug = newSlug;
+            updateData.slug = newSlug;
         }
-
 
         // Validate and update expiration date
         if (expiresAt !== undefined) {
@@ -470,7 +472,7 @@ const {
                     });
                 }
 
-                   if (parsedExpiresAt <= new Date()) {
+                if (parsedExpiresAt <= new Date()) {
                     return res.status(400).json({
                         message: "Expiration date must be in the future",
                         status: "failed"
@@ -481,17 +483,35 @@ const {
             }
         }
 
-          // Update password
+        // Update password
         if (password !== undefined) {
             if (password === "") {
                 // Remove password protection
                 updateData.passwordHash = null;
             } else {
-                updateData.passwordHash = await bcrypt.hash(password, 10);
+                updateData.passwordHash = await bcrypt.hash(
+                    password,
+                    10
+                );
             }
         }
 
-         // Update link
+        // Validate and update status
+        if (status !== undefined) {
+            if (
+                status !== "ACTIVE" &&
+                status !== "DISABLED"
+            ) {
+                return res.status(400).json({
+                    message: "Invalid link status",
+                    status: "failed"
+                });
+            }
+
+            updateData.status = status;
+        }
+
+        // Update link
         const updatedLink = await prisma.link.update({
             where: {
                 id: linkId
@@ -504,25 +524,31 @@ const {
                 title: true,
                 description: true,
                 expiresAt: true,
+                status: true,
                 workspaceId: true,
                 createdAt: true,
                 updatedAt: true
             }
-             });
+        });
+
+        // Remove stale cached versions
+        await deleteRedis(`link:${existingLink.slug}`);
+        await deleteRedis(`link:${updatedLink.slug}`);
 
         return res.status(200).json({
             message: "Link updated successfully",
             status: "success",
             link: updatedLink
         });
-   }catch(error){
-    console.error("Update link error:", error);
 
-    return res.status(500).json({
-        message: error.message,
-        status: "failed"
-    });
-   }
+    } catch (error) {
+        console.error("Update link error:", error);
+
+        return res.status(500).json({
+            message: error.message,
+            status: "failed"
+        });
+    }
 }
 
 // DELETE LINK CONTROLLER
@@ -583,6 +609,9 @@ async function deleteLinkController(req, res) {
                 id: linkId
             }
         });
+
+        // Remove deleted link from Redis cache
+        await deleteRedis(`link:${link.slug}`);
 
         return res.status(200).json({
             message: "Link deleted successfully",

@@ -6,12 +6,14 @@ const cookieParser = require("cookie-parser");
 const authRouter = require("./routes/auth.routes");
 const workspaceRouter = require("./routes/workspace.routes.js");
 const linkRouter = require("./routes/link.routes.js");
+const redirectRouter = require("./routes/redirect.routes.js");
 
 app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRouter);
 app.use("/api/workspaces", workspaceRouter);
-app.use("/api/links", linkRouter);
+app.use("/api/redirect", redirectRouter);
+app.use("/api", linkRouter);
 
 module.exports = app;
