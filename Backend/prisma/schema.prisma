@@ -104,11 +104,12 @@ model AnalyticsEvent{
    eventId    String  @unique
    linkId     Int
 
-  ipAddress  String?
+hashedIp String?
   userAgent  String?
   referrer   String?
 
   country   String?
+  city      String?
   device    String?
   browser   String?
   os        String?

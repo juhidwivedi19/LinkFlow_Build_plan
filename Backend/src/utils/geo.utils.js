@@ -1,22 +1,29 @@
 const geoip = require("geoip-lite");
 
-function getCountry(ipAddress) {
+function getLocation(ipAddress) {
     if (!ipAddress) {
-        return "unknown";
+        return {
+            country: "unknown",
+            city: "unknown"
+        };
     }
 
-    // Handle IPv4-mapped IPv6 addresses
     const normalizedIp = ipAddress.replace("::ffff:", "");
-
     const location = geoip.lookup(normalizedIp);
 
-    if (!location || !location.country) {
-        return "unknown";
+    if (!location) {
+        return {
+            country: "unknown",
+            city: "unknown"
+        };
     }
 
-    return location.country;
+    return {
+        country: location.country || "unknown",
+        city: location.city || "unknown"
+    };
 }
 
 module.exports = {
-    getCountry
+    getLocation
 };

@@ -1,12 +1,14 @@
 const { Worker } = require("bullmq");
 
 const prisma = require("../config/db.config.js");
-const { getCountry } = require("../utils/geo.utils.js");
+
 const {
     getDevice,
     getBrowser,
     getOS
 } = require("../utils/analytics.utils.js");
+
+const { getLocation } = require("../utils/geo.utils.js");
 
 console.log("Analytics worker started");
 
@@ -17,28 +19,41 @@ const analyticsWorker = new Worker(
             eventId,
             linkId,
             ipAddress,
+            hashedIp,
             userAgent,
             referrer,
             occurredAt
         } = job.data;
 
+         // Validate required fields before processing the analytics event.
+        // Throwing the error allows BullMQ to retry the failed job.
+        if (!eventId) {
+            throw new Error("Analytics job missing eventId");
+        }
+
         if (!linkId) {
     throw new Error("Analytics job missing linkId");
 }
 
+// Convert the raw User-Agent into useful analytics fields.
 const device = getDevice(userAgent);
 const browser = getBrowser(userAgent);
 const os = getOS(userAgent);
-const country = getCountry(ipAddress);
+
+
+        // GeoIP lookup is performed inside the background worker,
+        // so it does not slow down the user's redirect request.
+        const { country, city } = getLocation(ipAddress);
 
         await prisma.analyticsEvent.create({
             data: {
                 eventId,
                 linkId,
-                ipAddress,
+                hashedIp,
                 userAgent,
                 referrer,
                 country,
+                city,
                 device,
                 browser,
                 os,
