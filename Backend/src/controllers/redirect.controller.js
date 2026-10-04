@@ -7,7 +7,7 @@ const {
     setRedis,
 } = require("../services/redis.service.js");
 
-const analyticsQueue = require("../queues/analytics.queue.js");
+const { createAnalyticsEvent } = require("../services/analytics.service.js");
 
 // Redirect short link
 async function redirectController(req, res) {
@@ -124,13 +124,11 @@ try {
             }
         }
     
-       analyticsQueue.add("link-click", {
+     createAnalyticsEvent({
     linkId: link.id,
     ipAddress: req.ip,
     userAgent: req.get("user-agent"),
     referrer: req.get("referer") || null
-}).catch((error) => {
-    console.error("Analytics queue error:", error);
 });
 
 return res.redirect(302, link.url);

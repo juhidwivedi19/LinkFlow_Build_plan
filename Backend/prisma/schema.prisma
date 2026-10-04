@@ -101,14 +101,24 @@ enum LinkStatus {
 
 model AnalyticsEvent{
   id    Int   @id @default(autoincrement())
+   eventId    String  @unique
    linkId     Int
+
   ipAddress  String?
   userAgent  String?
   referrer   String?
+
+  country   String?
+  device    String?
+  browser   String?
+  os        String?
+
+    occurredAt DateTime @default(now())
   createdAt  DateTime @default(now())
 
   link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
 
   @@index([linkId])
   @@index([createdAt])
+  @@index([linkId, occurredAt])
 }
