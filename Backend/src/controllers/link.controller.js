@@ -5,7 +5,8 @@ const crypto = require("crypto");
 const {
     getRedis,
     setRedis,
-    deleteRedis
+    deleteRedis,
+    deleteDashboardCache
 } = require("../services/redis.service.js");
 
 //CREATE LINK CONTROLLER
@@ -153,6 +154,15 @@ async function createLinkController(req, res) {
                 workspaceId: workspaceId
             }
         });
+
+        try {
+    await deleteDashboardCache(workspaceId);
+} catch (error) {
+    console.error(
+        "Dashboard cache invalidation error:",
+        error
+    );
+}
 
         return res.status(201).json({
             message: "Link created successfully",
@@ -610,13 +620,24 @@ async function deleteLinkController(req, res) {
             }
         });
 
-        // Remove deleted link from Redis cache
-        await deleteRedis(`link:${link.slug}`);
+      // Remove deleted link from Redis cache
+await deleteRedis(`link:${link.slug}`);
 
-        return res.status(200).json({
-            message: "Link deleted successfully",
-            status: "success"
-        });
+// Invalidate workspace dashboard cache because
+// deleting a link can change dashboard Top Links.
+try {
+    await deleteDashboardCache(workspaceId);
+} catch (error) {
+    console.error(
+        "Dashboard cache invalidation error:",
+        error
+    );
+}
+
+return res.status(200).json({
+    message: "Link deleted successfully",
+    status: "success"
+});
 
     } catch (error) {
         console.error("Delete link error:", error);

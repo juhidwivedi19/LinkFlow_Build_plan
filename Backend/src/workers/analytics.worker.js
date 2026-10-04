@@ -1,5 +1,5 @@
 const { Worker } = require("bullmq");
-
+const { deleteDashboardCache } = require("../services/redis.service.js");
 const prisma = require("../config/db.config.js");
 
 const {
@@ -61,6 +61,28 @@ const os = getOS(userAgent);
             }
         });
 
+        // Find the workspace that owns this link.
+const link = await prisma.link.findUnique({
+    where: {
+        id: linkId
+    },
+    select: {
+        workspaceId: true
+    }
+});
+
+if (link) {
+    // New click changes dashboard statistics,
+    // so invalidate the cached dashboard.
+    try {
+        await deleteDashboardCache(link.workspaceId);
+    } catch (error) {
+        console.error(
+            "Dashboard cache invalidation error:",
+            error
+        );
+    }
+}
         console.log(
             `Analytics event processed for link ${linkId}`
         );
