@@ -4,13 +4,15 @@ const { Prisma } = require("@prisma/client");
 async function getAnalyticsEventsByLink(
     linkId,
     skip,
-    limit
+    limit,
+    dateFilter={}
 ) {
     // Fetch only the required number of events.
     // This prevents loading a huge analytics dataset into memory.
     return await prisma.analyticsEvent.findMany({
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         orderBy: {
             occurredAt: "desc"
@@ -20,33 +22,36 @@ async function getAnalyticsEventsByLink(
     });
 }
 
-async function countAnalyticsEventsByLink(linkId) {
+async function countAnalyticsEventsByLink(linkId, dateFilter={}) {
     // Count is kept separate so the API can tell the client
     // how many analytics events exist in total.
     return await prisma.analyticsEvent.count({
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         }
     });
 }
 
-async function getTotalClicksByLink(linkId) {
+async function getTotalClicksByLink(linkId, dateFilter = {}) {
     // count() is much cheaper than fetching every analytics event
     // when we only need the total number of clicks.
     return await prisma.analyticsEvent.count({
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         }
     });
 }
 
-async function getClicksByCountry(linkId) {
+async function getClicksByCountry(linkId, dateFilter={}) {
     // groupBy lets PostgreSQL calculate the aggregation
     // without loading every event into Node.js memory.
     return await prisma.analyticsEvent.groupBy({
         by: ["country"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true
@@ -59,11 +64,12 @@ async function getClicksByCountry(linkId) {
     });
 }
 
-async function getClicksByCity(linkId) {
+async function getClicksByCity(linkId, dateFilter = {}) {
     return await prisma.analyticsEvent.groupBy({
         by: ["city"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true
@@ -76,11 +82,12 @@ async function getClicksByCity(linkId) {
     });
 }
 
-async function getClicksByBrowser(linkId) {
+async function getClicksByBrowser(linkId, dateFilter={}) {
     return await prisma.analyticsEvent.groupBy({
         by: ["browser"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true
@@ -93,11 +100,12 @@ async function getClicksByBrowser(linkId) {
     });
 }
 
-async function getClicksByDevice(linkId) {
+async function getClicksByDevice(linkId, dateFilter={}) {
     return await prisma.analyticsEvent.groupBy({
         by: ["device"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true
@@ -110,11 +118,12 @@ async function getClicksByDevice(linkId) {
     });
 }
 
-async function getClicksByOS(linkId) {
+async function getClicksByOS(linkId, dateFilter={}) {
     return await prisma.analyticsEvent.groupBy({
         by: ["os"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true
@@ -127,11 +136,12 @@ async function getClicksByOS(linkId) {
     });
 }
 
-async function getClicksByReferrer(linkId) {
+async function getClicksByReferrer(linkId, dateFilter={}) {
     return await prisma.analyticsEvent.groupBy({
         by: ["referrer"],
         where: {
-            linkId
+            linkId,
+            ...dateFilter
         },
         _count: {
             _all: true

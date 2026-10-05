@@ -92,7 +92,7 @@ const dateFilter = Object.keys(occurredAt).length > 0
             browser: byBrowser,
             device: byDevice,
             os: byOS,
-            referer: byReferer
+            referrer: byReferrer
         },
         overTime,
         events,

@@ -88,8 +88,9 @@ model Link {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-status LinkStatus @default(ACTIVE)
-analyticsEvents AnalyticsEvent[]
+  status          LinkStatus       @default(ACTIVE)
+  analyticsEvents AnalyticsEvent[]
+  qrCode          QRCode?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -99,22 +100,22 @@ enum LinkStatus {
   DISABLED
 }
 
-model AnalyticsEvent{
-  id    Int   @id @default(autoincrement())
-   eventId    String  @unique
-   linkId     Int
+model AnalyticsEvent {
+  id      Int    @id @default(autoincrement())
+  eventId String @unique
+  linkId  Int
 
-hashedIp String?
-  userAgent  String?
-  referrer   String?
+  hashedIp  String?
+  userAgent String?
+  referrer  String?
 
-  country   String?
-  city      String?
-  device    String?
-  browser   String?
-  os        String?
+  country String?
+  city    String?
+  device  String?
+  browser String?
+  os      String?
 
-    occurredAt DateTime @default(now())
+  occurredAt DateTime @default(now())
   createdAt  DateTime @default(now())
 
   link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
@@ -122,4 +123,23 @@ hashedIp String?
   @@index([linkId])
   @@index([createdAt])
   @@index([linkId, occurredAt])
+}
+
+model QRCode {
+  id         Int          @id @default(autoincrement())
+  linkId     Int          @unique
+  storageKey String?
+  status     QRCodeStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+}
+
+enum QRCodeStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
