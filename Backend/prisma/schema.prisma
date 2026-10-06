@@ -143,3 +143,4 @@ enum QRCodeStatus {
   COMPLETED
   FAILED
 }
+0
