@@ -9,6 +9,8 @@ const linkRouter = require("./routes/link.routes.js");
 const redirectRouter = require("./routes/redirect.routes.js");
 const analyticsRouter = require("./routes/analytics.routes.js");
 const dashboardRouter = require("./routes/dashboard.routes.js");
+const qrRouter = require("./routes/qr.routes.js");
+
 
 app.use(express.json());
 app.use(cookieParser());
@@ -19,5 +21,7 @@ app.use("/api/redirect", redirectRouter);
 app.use("/api", linkRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/analytics", dashboardRouter);
+app.use("/api/qr", qrRouter);
+
 
 module.exports = app;

@@ -1,4 +1,4 @@
-const {queue} = require("bullmq");
+const {Queue} = require("bullmq");
 
 const qrQueue = new Queue("qr-generation", {
     connection: {

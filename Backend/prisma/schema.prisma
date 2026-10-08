@@ -52,7 +52,7 @@ model Workspace {
 enum Role {
   OWNER
   ADMIN
-  MEMBER
+  Editor
   VIEWER
 }
 
@@ -143,4 +143,3 @@ enum QRCodeStatus {
   COMPLETED
   FAILED
 }
-0

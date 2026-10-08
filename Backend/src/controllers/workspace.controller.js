@@ -321,13 +321,6 @@ async function deleteWorkspaceController(req,res){
             });
           }
 
-            if (membership.role !== "OWNER") {
-            return res.status(403).json({
-                message: "Only the workspace owner can delete the workspace",
-                status: "failed"
-            });
-        }
-
         await prisma.workspace.delete({
             where: {
                 id: workspaceId
@@ -438,7 +431,7 @@ async function addWorkspaceMemberController(req, res) {
             });
         }
 
-        const allowedRoles = ["ADMIN", "MEMBER", "VIEWER"];
+        const allowedRoles = ["ADMIN", "EDITOR", "VIEWER"];
 
         if (!role || !allowedRoles.includes(role)) {
             return res.status(400).json({
@@ -542,6 +535,7 @@ async function addWorkspaceMemberController(req, res) {
 
 
 //CHANGE MEMBERS ROLE
+// CHANGE MEMBER ROLE
 async function updateMemberRoleController(req, res) {
     try {
         const currentUserId = req.user.id;
@@ -550,6 +544,7 @@ async function updateMemberRoleController(req, res) {
 
         const { role } = req.body;
 
+        // Validate IDs
         if (!workspaceId || !targetUserId) {
             return res.status(400).json({
                 message: "Invalid ID",
@@ -557,7 +552,8 @@ async function updateMemberRoleController(req, res) {
             });
         }
 
-        const allowedRoles = ["ADMIN", "MEMBER", "VIEWER"];
+        // These are the roles that can be assigned.
+        const allowedRoles = ["OWNER", "ADMIN", "EDITOR", "VIEWER"];
 
         if (!role || !allowedRoles.includes(role)) {
             return res.status(400).json({
@@ -566,6 +562,7 @@ async function updateMemberRoleController(req, res) {
             });
         }
 
+        // Find the person performing the role change.
         const currentMembership = await prisma.membership.findUnique({
             where: {
                 userId_workspaceId: {
@@ -582,13 +579,18 @@ async function updateMemberRoleController(req, res) {
             });
         }
 
-        if (currentMembership.role !== "OWNER") {
+        // Only OWNER and ADMIN can change member roles.
+        if (
+            currentMembership.role !== "OWNER" &&
+            currentMembership.role !== "ADMIN"
+        ) {
             return res.status(403).json({
-                message: "Only the workspace owner can change member roles",
+                message: "You do not have permission to change member roles",
                 status: "failed"
             });
         }
 
+        // Find the member whose role is being changed.
         const targetMembership = await prisma.membership.findUnique({
             where: {
                 userId_workspaceId: {
@@ -605,13 +607,29 @@ async function updateMemberRoleController(req, res) {
             });
         }
 
-        if (targetMembership.role === "OWNER") {
-            return res.status(400).json({
-                message: "Owner role cannot be changed",
+        // ADMIN cannot modify an OWNER.
+        if (
+            currentMembership.role === "ADMIN" &&
+            targetMembership.role === "OWNER"
+        ) {
+            return res.status(403).json({
+                message: "Admin cannot change the owner's role",
                 status: "failed"
             });
         }
 
+        // ADMIN cannot promote anyone to OWNER.
+        if (
+            currentMembership.role === "ADMIN" &&
+            role === "OWNER"
+        ) {
+            return res.status(403).json({
+                message: "Admin cannot assign the OWNER role",
+                status: "failed"
+            });
+        }
+
+        // Update the member's role.
         const updatedMembership = await prisma.membership.update({
             where: {
                 id: targetMembership.id
@@ -640,7 +658,6 @@ async function updateMemberRoleController(req, res) {
         });
     }
 }
-
 
 async function removeWorkspaceMemberController(req, res) {
     try {

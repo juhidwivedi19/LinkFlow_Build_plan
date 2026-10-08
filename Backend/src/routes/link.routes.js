@@ -1,6 +1,7 @@
 const express = require("express");
 
 const authMiddleware = require("../middlewares/auth.middleware.js");
+const { authorize } = require("../middlewares/rbac.middleware.js");
 
 const {
     createLinkController,
@@ -17,7 +18,8 @@ const router = express.Router();
 router.post(
     "/workspaces/:workspaceId/links",
     authMiddleware.authMiddleware,
-    createLinkController
+authorize("CREATE_LINK"),
+createLinkController
 );
 
 
@@ -41,7 +43,8 @@ router.get(
 router.patch(
     "/workspaces/:workspaceId/links/:linkId",
     authMiddleware.authMiddleware,
-    updateLinkController
+     authorize("EDIT_LINK"),
+     updateLinkController
 );
 
 
@@ -49,7 +52,8 @@ router.patch(
 router.delete(
     "/workspaces/:workspaceId/links/:linkId",
     authMiddleware.authMiddleware,
-    deleteLinkController
+    authorize("DELETE_LINK"),
+     deleteLinkController
 );
 
 
