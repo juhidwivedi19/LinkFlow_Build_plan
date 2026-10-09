@@ -9,7 +9,8 @@ const {
     deleteDashboardCache
 } = require("../services/redis.service.js");
 
-//CREATE LINK CONTROLLER
+
+// CREATE LINK CONTROLLER
 async function createLinkController(req, res) {
     try {
         const userId = req.user.id;
@@ -21,7 +22,9 @@ async function createLinkController(req, res) {
             title,
             description,
             expiresAt,
-            password
+            password,
+            status,
+            customDomainId
         } = req.body;
 
         // Validate workspace ID
@@ -47,6 +50,26 @@ async function createLinkController(req, res) {
                 message: "You do not have access to this workspace",
                 status: "failed"
             });
+        }
+
+        // Validate custom domain if provided.
+        // The domain must belong to this workspace and must already be verified.
+        if (customDomainId !== undefined && customDomainId !== null) {
+            const customDomain = await prisma.customDomain.findFirst({
+                where: {
+                    id: Number(customDomainId),
+                    workspaceId: workspaceId,
+                    verified: true
+                }
+            });
+
+            if (!customDomain) {
+                return res.status(400).json({
+                    message:
+                        "Custom domain not found, does not belong to this workspace, or is not verified",
+                    status: "failed"
+                });
+            }
         }
 
         // Validate URL
@@ -151,18 +174,26 @@ async function createLinkController(req, res) {
                     : null,
                 expiresAt: parsedExpiresAt,
                 passwordHash: passwordHash,
-                workspaceId: workspaceId
+                workspaceId: workspaceId,
+
+                // Store custom domain when provided.
+                // Otherwise the link uses the default LinkFlow domain.
+                customDomainId: customDomainId
+                    ? Number(customDomainId)
+                    : null
             }
         });
 
+        // Invalidate dashboard cache because a new link
+        // can change dashboard statistics and Top Links.
         try {
-    await deleteDashboardCache(workspaceId);
-} catch (error) {
-    console.error(
-        "Dashboard cache invalidation error:",
-        error
-    );
-}
+            await deleteDashboardCache(workspaceId);
+        } catch (error) {
+            console.error(
+                "Dashboard cache invalidation error:",
+                error
+            );
+        }
 
         return res.status(201).json({
             message: "Link created successfully",
@@ -175,6 +206,7 @@ async function createLinkController(req, res) {
                 description: link.description,
                 expiresAt: link.expiresAt,
                 workspaceId: link.workspaceId,
+                customDomainId: link.customDomainId,
                 createdAt: link.createdAt
             }
         });
@@ -189,40 +221,40 @@ async function createLinkController(req, res) {
     }
 }
 
-//GET WORKSPACE LINKS CONTROLLER
-async function getWorkspaceLinksController(req,res){
-    try{
 
-          const userId = req.user.id;
-          const workspaceId = Number(req.params.workspaceId);
+// GET WORKSPACE LINKS CONTROLLER
+async function getWorkspaceLinksController(req, res) {
+    try {
+        const userId = req.user.id;
+        const workspaceId = Number(req.params.workspaceId);
 
-          //validate workspace id
-          if(!Number.isInteger(workspaceId)){
-              return res.status(400).json({
-                  message: "Invalid workspace ID",
-                  status: "failed"
-              });
-          }
+        // Validate workspace ID
+        if (!Number.isInteger(workspaceId)) {
+            return res.status(400).json({
+                message: "Invalid workspace ID",
+                status: "failed"
+            });
+        }
 
-          //check whether the user belong to this workspace
-          const membership = await prisma.membership.findUnique({
-            where:{
+        // Check whether the user belongs to this workspace
+        const membership = await prisma.membership.findUnique({
+            where: {
                 userId_workspaceId: {
                     userId: userId,
                     workspaceId: workspaceId
                 }
             }
-          });
+        });
 
-          if(!membership){
+        if (!membership) {
             return res.status(403).json({
                 message: "You do not have access to this workspace",
-                status:"failed"
+                status: "failed"
             });
-          }
+        }
 
-          //fetch links belonging to this workspace
-          const links = await prisma.link.findMany({
+        // Fetch links belonging to this workspace
+        const links = await prisma.link.findMany({
             where: {
                 workspaceId: workspaceId
             },
@@ -230,24 +262,26 @@ async function getWorkspaceLinksController(req,res){
                 createdAt: "desc"
             },
             select: {
-                id:true,
-                url:true,
-                slug:true,
-                title:true,
+                id: true,
+                url: true,
+                slug: true,
+                title: true,
                 description: true,
                 expiresAt: true,
                 workspaceId: true,
+                customDomainId: true,
                 createdAt: true,
                 updatedAt: true
             }
-          });
+        });
 
-          return res.status(200).json({
+        return res.status(200).json({
             message: "Workspace links fetched successfully",
             status: "success",
             links: links
-          });
-    }catch(error){
+        });
+
+    } catch (error) {
         console.error("Get workspace links error:", error);
 
         return res.status(500).json({
@@ -257,7 +291,8 @@ async function getWorkspaceLinksController(req,res){
     }
 }
 
-//get link controller
+
+// GET LINK CONTROLLER
 async function getLinkController(req, res) {
     try {
         const userId = req.user.id;
@@ -305,6 +340,7 @@ async function getLinkController(req, res) {
                 description: true,
                 expiresAt: true,
                 workspaceId: true,
+                customDomainId: true,
                 createdAt: true,
                 updatedAt: true
             }
@@ -334,7 +370,7 @@ async function getLinkController(req, res) {
 }
 
 
-//UPDATE LINK CONTROLLER
+// UPDATE LINK CONTROLLER
 async function updateLinkController(req, res) {
     try {
         const userId = req.user.id;
@@ -348,10 +384,11 @@ async function updateLinkController(req, res) {
             description,
             expiresAt,
             password,
-            status
+            status,
+            customDomainId
         } = req.body;
 
-        // Validate IDs
+        // Validate workspace and link IDs.
         if (
             !Number.isInteger(workspaceId) ||
             workspaceId <= 0 ||
@@ -364,12 +401,12 @@ async function updateLinkController(req, res) {
             });
         }
 
-        // Check workspace membership
+        // Ensure the user belongs to this workspace.
         const membership = await prisma.membership.findUnique({
             where: {
                 userId_workspaceId: {
-                    userId: userId,
-                    workspaceId: workspaceId
+                    userId,
+                    workspaceId
                 }
             }
         });
@@ -381,11 +418,11 @@ async function updateLinkController(req, res) {
             });
         }
 
-        // Check whether link belongs to this workspace
+        // Ensure the link belongs to this workspace.
         const existingLink = await prisma.link.findFirst({
             where: {
                 id: linkId,
-                workspaceId: workspaceId
+                workspaceId
             }
         });
 
@@ -396,12 +433,48 @@ async function updateLinkController(req, res) {
             });
         }
 
-        // Prepare update data
         const updateData = {};
 
-        // Validate and update URL
+        // Validate a custom domain before attaching it.
+        // The domain must belong to this workspace and be verified.
+        if (customDomainId !== undefined && customDomainId !== null) {
+            const parsedDomainId = Number(customDomainId);
+
+            if (
+                !Number.isInteger(parsedDomainId) ||
+                parsedDomainId <= 0
+            ) {
+                return res.status(400).json({
+                    message: "Invalid custom domain ID",
+                    status: "failed"
+                });
+            }
+
+            const customDomain = await prisma.customDomain.findFirst({
+                where: {
+                    id: parsedDomainId,
+                    workspaceId,
+                    verified: true
+                }
+            });
+
+            if (!customDomain) {
+                return res.status(400).json({
+                    message:
+                        "Custom domain not found, does not belong to this workspace, or is not verified",
+                    status: "failed"
+                });
+            }
+
+            updateData.customDomainId = parsedDomainId;
+        } else if (customDomainId === null) {
+            // Explicit null removes the custom domain.
+            updateData.customDomainId = null;
+        }
+
+        // Validate and update URL.
         if (url !== undefined) {
-            if (!url.trim()) {
+            if (typeof url !== "string" || !url.trim()) {
                 return res.status(400).json({
                     message: "URL cannot be empty",
                     status: "failed"
@@ -420,9 +493,9 @@ async function updateLinkController(req, res) {
             updateData.url = url.trim();
         }
 
-        // Validate and update title
+        // Validate and update title.
         if (title !== undefined) {
-            if (!title.trim()) {
+            if (typeof title !== "string" || !title.trim()) {
                 return res.status(400).json({
                     message: "Title cannot be empty",
                     status: "failed"
@@ -432,16 +505,23 @@ async function updateLinkController(req, res) {
             updateData.title = title.trim();
         }
 
-        // Update description
+        // Update description; an empty value clears it.
         if (description !== undefined) {
+            if (description !== null && typeof description !== "string") {
+                return res.status(400).json({
+                    message: "Invalid description",
+                    status: "failed"
+                });
+            }
+
             updateData.description = description
                 ? description.trim()
                 : null;
         }
 
-        // Validate and update slug
+        // Validate and update slug.
         if (slug !== undefined) {
-            if (!slug.trim()) {
+            if (typeof slug !== "string" || !slug.trim()) {
                 return res.status(400).json({
                     message: "Slug cannot be empty",
                     status: "failed"
@@ -468,7 +548,7 @@ async function updateLinkController(req, res) {
             updateData.slug = newSlug;
         }
 
-        // Validate and update expiration date
+        // Validate and update expiration date.
         if (expiresAt !== undefined) {
             if (expiresAt === null || expiresAt === "") {
                 updateData.expiresAt = null;
@@ -493,12 +573,18 @@ async function updateLinkController(req, res) {
             }
         }
 
-        // Update password
+        // Update or remove password protection.
         if (password !== undefined) {
             if (password === "") {
-                // Remove password protection
                 updateData.passwordHash = null;
             } else {
+                if (typeof password !== "string") {
+                    return res.status(400).json({
+                        message: "Invalid password",
+                        status: "failed"
+                    });
+                }
+
                 updateData.passwordHash = await bcrypt.hash(
                     password,
                     10
@@ -506,12 +592,9 @@ async function updateLinkController(req, res) {
             }
         }
 
-        // Validate and update status
+        // Validate and update link status.
         if (status !== undefined) {
-            if (
-                status !== "ACTIVE" &&
-                status !== "DISABLED"
-            ) {
+            if (status !== "ACTIVE" && status !== "DISABLED") {
                 return res.status(400).json({
                     message: "Invalid link status",
                     status: "failed"
@@ -521,7 +604,7 @@ async function updateLinkController(req, res) {
             updateData.status = status;
         }
 
-        // Update link
+        // Save changes and return the updated link.
         const updatedLink = await prisma.link.update({
             where: {
                 id: linkId
@@ -536,14 +619,25 @@ async function updateLinkController(req, res) {
                 expiresAt: true,
                 status: true,
                 workspaceId: true,
+                customDomainId: true,
                 createdAt: true,
                 updatedAt: true
             }
         });
 
-        // Remove stale cached versions
+        // Remove cached entries so the redirect uses updated link data.
         await deleteRedis(`link:${existingLink.slug}`);
         await deleteRedis(`link:${updatedLink.slug}`);
+
+        // Link changes can affect dashboard results.
+        try {
+            await deleteDashboardCache(workspaceId);
+        } catch (error) {
+            console.error(
+                "Dashboard cache invalidation error:",
+                error
+            );
+        }
 
         return res.status(200).json({
             message: "Link updated successfully",
@@ -555,11 +649,12 @@ async function updateLinkController(req, res) {
         console.error("Update link error:", error);
 
         return res.status(500).json({
-            message: error.message,
+            message: "Internal server error",
             status: "failed"
         });
     }
 }
+
 
 // DELETE LINK CONTROLLER
 async function deleteLinkController(req, res) {
@@ -620,24 +715,24 @@ async function deleteLinkController(req, res) {
             }
         });
 
-      // Remove deleted link from Redis cache
-await deleteRedis(`link:${link.slug}`);
+        // Remove deleted link from Redis cache
+        await deleteRedis(`link:${link.slug}`);
 
-// Invalidate workspace dashboard cache because
-// deleting a link can change dashboard Top Links.
-try {
-    await deleteDashboardCache(workspaceId);
-} catch (error) {
-    console.error(
-        "Dashboard cache invalidation error:",
-        error
-    );
-}
+        // Invalidate workspace dashboard cache because
+        // deleting a link can change dashboard Top Links.
+        try {
+            await deleteDashboardCache(workspaceId);
+        } catch (error) {
+            console.error(
+                "Dashboard cache invalidation error:",
+                error
+            );
+        }
 
-return res.status(200).json({
-    message: "Link deleted successfully",
-    status: "success"
-});
+        return res.status(200).json({
+            message: "Link deleted successfully",
+            status: "success"
+        });
 
     } catch (error) {
         console.error("Delete link error:", error);
@@ -649,10 +744,11 @@ return res.status(200).json({
     }
 }
 
+
 module.exports = {
     createLinkController,
     getWorkspaceLinksController,
     getLinkController,
     updateLinkController,
     deleteLinkController
-}
+};

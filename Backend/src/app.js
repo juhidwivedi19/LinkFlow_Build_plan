@@ -10,7 +10,7 @@ const redirectRouter = require("./routes/redirect.routes.js");
 const analyticsRouter = require("./routes/analytics.routes.js");
 const dashboardRouter = require("./routes/dashboard.routes.js");
 const qrRouter = require("./routes/qr.routes.js");
-
+const customDomainRouter = require("./routes/custom-domain.routes.js");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -22,6 +22,6 @@ app.use("/api", linkRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/analytics", dashboardRouter);
 app.use("/api/qr", qrRouter);
-
+app.use("/api", customDomainRouter);
 
 module.exports = app;

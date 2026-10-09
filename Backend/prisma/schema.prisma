@@ -45,8 +45,11 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships Membership[]
-  links       Link[]
+  memberships   Membership[]
+  links         Link[]
+  customDomains CustomDomain[]
+  apiKeys ApiKey[]
+
 }
 
 enum Role {
@@ -73,26 +76,29 @@ model Membership {
 
 model Link {
   id  Int    @id @default(autoincrement())
-  url String //long URL
+  url String // long URL
 
-  slug String @unique //short url
+  slug String @unique // short URL
 
   title       String
   description String?
 
-  expiresAt DateTime?
-
+  expiresAt    DateTime?
   passwordHash String?
 
-  workspaceId Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  workspaceId    Int
+  customDomainId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   status          LinkStatus       @default(ACTIVE)
   analyticsEvents AnalyticsEvent[]
   qrCode          QRCode?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  customDomain CustomDomain? @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
 }
 
 enum LinkStatus {
@@ -142,4 +148,37 @@ enum QRCodeStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+model CustomDomain {
+  id                Int      @id @default(autoincrement())
+  domain            String   @unique
+  workspaceId       Int
+  verified          Boolean  @default(false)
+  verificationToken String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  links Link[]
+}
+
+
+model ApiKey {
+  id  Int   @id @default(autoincrement())
+  name   String
+  KeyPrefix     String
+  KeyHash    String    @unique
+  permissions      String[]   @default([])
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+   workspaceId Int
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }

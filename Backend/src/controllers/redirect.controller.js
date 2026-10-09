@@ -9,12 +9,19 @@ const {
 
 const { createAnalyticsEvent } = require("../services/analytics.service.js");
 
+// Normalize hostname to avoid differences caused by case or a trailing dot.
+function normalizeHostname(hostname) {
+    return hostname
+        .trim()
+        .toLowerCase()
+        .replace(/\.$/, "");
+}
+
 // Redirect short link
 async function redirectController(req, res) {
     try {
         const { slug } = req.params;
 
-        // Validate slug before using it
         if (!slug || !slug.trim()) {
             return res.status(400).json({
                 message: "Slug is required",
@@ -23,43 +30,81 @@ async function redirectController(req, res) {
         }
 
         const normalizedSlug = slug.trim().toLowerCase();
-        const cacheKey = `link:${normalizedSlug}`;
-        // Each short link gets its own Redis cache key
-       let cachedLink = null;
+        const hostname = normalizeHostname(req.hostname);
 
-try {
-    cachedLink = await getRedis(cacheKey);
-} catch (error) {
-    console.error("Redis GET error:", error);
-}
+        // Domain-aware keys prevent different domains from sharing cached links.
+        const cacheKey = `link:${hostname}:${normalizedSlug}`;
 
-        let link;
+        let link = null;
 
-        if (cachedLink) {
-            // Redis stores JSON as a string
-            link = JSON.parse(cachedLink);
-        } else {
-            // Cache miss → fetch the link from PostgreSQL
-            link = await prisma.link.findUnique({
-                where: {
-                    slug: normalizedSlug
-                }
-            });
+        try {
+            const cachedLink = await getRedis(cacheKey);
 
-         if (link) {
-    try {
-        await setRedis(
-            cacheKey,
-            JSON.stringify(link),
-            300
-        );
-    } catch (error) {
-        console.error("Redis SET error:", error);
-    }
-}
+            if (cachedLink) {
+                link = JSON.parse(cachedLink);
+            }
+        } catch (error) {
+            console.error("Redis GET error:", error);
         }
 
-        // Link does not exist
+        if (!link) {
+            // Resolve whether the request uses a registered custom domain.
+            let customDomain = null;
+
+            try {
+                customDomain = await prisma.customDomain.findUnique({
+                    where: {
+                        domain: hostname
+                    },
+                    select: {
+                        id: true,
+                        verified: true
+                    }
+                });
+            } catch (error) {
+                console.error("Custom domain lookup error:", error);
+                return res.status(500).json({
+                    message: "Unable to resolve domain",
+                    status: "failed"
+                });
+            }
+
+            if (customDomain && !customDomain.verified) {
+                return res.status(404).json({
+                    message: "Domain is not verified",
+                    status: "failed"
+                });
+            }
+
+            // Custom domains can only resolve links assigned to that domain.
+            // Requests to other hosts resolve links without a custom domain.
+            const where = customDomain
+                ? {
+                    slug: normalizedSlug,
+                    customDomainId: customDomain.id
+                }
+                : {
+                    slug: normalizedSlug,
+                    customDomainId: null
+                };
+
+            link = await prisma.link.findFirst({
+                where
+            });
+
+            if (link) {
+                try {
+                    await setRedis(
+                        cacheKey,
+                        JSON.stringify(link),
+                        300
+                    );
+                } catch (error) {
+                    console.error("Redis SET error:", error);
+                }
+            }
+        }
+
         if (!link) {
             return res.status(404).json({
                 message: "Link not found",
@@ -67,7 +112,6 @@ try {
             });
         }
 
-        // Expired links cannot be accessed
         if (
             link.expiresAt &&
             new Date(link.expiresAt) <= new Date()
@@ -78,7 +122,6 @@ try {
             });
         }
 
-        // Disabled links cannot redirect visitors
         if (link.status === "DISABLED") {
             return res.status(403).json({
                 message: "This link is disabled",
@@ -86,9 +129,9 @@ try {
             });
         }
 
-        // Password-protected links require temporary access token
+        // Password-protected links require a valid temporary access token.
         if (link.passwordHash) {
-            const accessToken = req.cookies.linkAccessToken;
+            const accessToken = req.cookies?.linkAccessToken;
 
             if (!accessToken) {
                 return res.status(401).json({
@@ -98,13 +141,11 @@ try {
             }
 
             try {
-                // Verify temporary link-access token
                 const decoded = jwt.verify(
                     accessToken,
                     process.env.JWT_SECRET
                 );
 
-                // Make sure token belongs to this link
                 if (
                     decoded.linkId !== link.id ||
                     decoded.purpose !== "link-access"
@@ -114,24 +155,26 @@ try {
                         status: "failed"
                     });
                 }
-
             } catch (error) {
-                // Token expired, invalid, or tampered with
                 return res.status(401).json({
                     message: "Password verification required",
                     status: "failed"
                 });
             }
         }
-    
-     createAnalyticsEvent({
-    linkId: link.id,
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent"),
-    referrer: req.get("referer") || null
-});
 
-return res.redirect(302, link.url);
+        // Preserve the analytics pipeline without delaying the redirect.
+        createAnalyticsEvent({
+            linkId: link.id,
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent"),
+            referrer: req.get("referer") || null
+        }).catch(error => {
+            console.error("Analytics event error:", error);
+        });
+
+        return res.redirect(302, link.url);
+
     } catch (error) {
         console.error("Error in redirect controller:", error);
 
@@ -148,8 +191,8 @@ async function verifyLinkPasswordController(req, res) {
     try {
         const { slug } = req.params;
         const { password } = req.body;
+        const hostname = normalizeHostname(req.hostname);
 
-        // Validate slug
         if (!slug || !slug.trim()) {
             return res.status(400).json({
                 message: "Slug is required",
@@ -157,7 +200,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // Password is required
         if (!password) {
             return res.status(400).json({
                 message: "Password is required",
@@ -167,14 +209,35 @@ async function verifyLinkPasswordController(req, res) {
 
         const normalizedSlug = slug.trim().toLowerCase();
 
-        // Find link using slug
-        const link = await prisma.link.findUnique({
+        const customDomain = await prisma.customDomain.findUnique({
             where: {
-                slug: normalizedSlug
+                domain: hostname
+            },
+            select: {
+                id: true,
+                verified: true
             }
         });
 
-        // Link does not exist
+        if (customDomain && !customDomain.verified) {
+            return res.status(404).json({
+                message: "Domain is not verified",
+                status: "failed"
+            });
+        }
+
+        const where = customDomain
+            ? {
+                slug: normalizedSlug,
+                customDomainId: customDomain.id
+            }
+            : {
+                slug: normalizedSlug,
+                customDomainId: null
+            };
+
+        const link = await prisma.link.findFirst({ where });
+
         if (!link) {
             return res.status(404).json({
                 message: "Link not found",
@@ -182,7 +245,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // Expired links cannot be unlocked
         if (
             link.expiresAt &&
             new Date(link.expiresAt) <= new Date()
@@ -193,7 +255,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // Disabled links cannot be unlocked
         if (link.status === "DISABLED") {
             return res.status(403).json({
                 message: "This link is disabled",
@@ -201,7 +262,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // This endpoint is only for password-protected links
         if (!link.passwordHash) {
             return res.status(400).json({
                 message: "This link is not password protected",
@@ -209,7 +269,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // Compare provided password with bcrypt hash
         const isPasswordValid = await bcrypt.compare(
             password,
             link.passwordHash
@@ -222,7 +281,6 @@ async function verifyLinkPasswordController(req, res) {
             });
         }
 
-        // Create temporary access token
         const accessToken = jwt.sign(
             {
                 linkId: link.id,
@@ -234,7 +292,6 @@ async function verifyLinkPasswordController(req, res) {
             }
         );
 
-        // Store token in httpOnly cookie
         res.cookie("linkAccessToken", accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
@@ -256,7 +313,6 @@ async function verifyLinkPasswordController(req, res) {
         });
     }
 }
-
 
 module.exports = {
     redirectController,
