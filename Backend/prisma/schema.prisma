@@ -48,8 +48,7 @@ model Workspace {
   memberships   Membership[]
   links         Link[]
   customDomains CustomDomain[]
-  apiKeys ApiKey[]
-
+  apiKeys       ApiKey[]
 }
 
 enum Role {
@@ -164,21 +163,19 @@ model CustomDomain {
   links Link[]
 }
 
-
 model ApiKey {
-  id  Int   @id @default(autoincrement())
-  name   String
-  KeyPrefix     String
-  KeyHash    String    @unique
-  permissions      String[]   @default([])
-  expiresAt      DateTime?
-  revokedAt      DateTime?
-  lastUsedAt     DateTime?
-  createdAt      DateTime     @default(now())
+  id          Int       @id @default(autoincrement())
+  name        String
+  keyPrefix   String
+  keyHash     String    @unique
+  permissions String[]  @default([])
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
 
-   workspaceId Int
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }

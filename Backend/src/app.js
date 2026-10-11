@@ -11,6 +11,9 @@ const analyticsRouter = require("./routes/analytics.routes.js");
 const dashboardRouter = require("./routes/dashboard.routes.js");
 const qrRouter = require("./routes/qr.routes.js");
 const customDomainRouter = require("./routes/custom-domain.routes.js");
+const apiKeyRouter = require("./routes/apiKey.routes.js");
+const externalLinkRouter = require("./routes/externalLink.routes");
+
 
 app.use(express.json());
 app.use(cookieParser());
@@ -23,5 +26,8 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/analytics", dashboardRouter);
 app.use("/api/qr", qrRouter);
 app.use("/api", customDomainRouter);
+app.use("/api", apiKeyRouter);
+app.use("/api/external", externalLinkRouter);
+
 
 module.exports = app;

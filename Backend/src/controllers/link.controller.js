@@ -13,9 +13,15 @@ const {
 // CREATE LINK CONTROLLER
 async function createLinkController(req, res) {
     try {
-        const userId = req.user.id;
-        const workspaceId = Number(req.params.workspaceId);
+        const isApiKeyRequest = Boolean(req.apiKey);
 
+  const workspaceId = isApiKeyRequest
+    ? req.apiKey.workspaceId
+    : Number(req.params.workspaceId);
+
+const userId = isApiKeyRequest
+    ? null
+    : req.user.id;
         const {
             url,
             slug,
@@ -34,23 +40,25 @@ async function createLinkController(req, res) {
                 status: "failed"
             });
         }
+// JWT requests must verify workspace membership.
+// API-key requests are authorized through the API key middleware.
+if (!isApiKeyRequest) {
+    const membership = await prisma.membership.findUnique({
+        where: {
+            userId_workspaceId: {
+                userId,
+                workspaceId,
+            },
+        },
+    });
 
-        // Check workspace membership
-        const membership = await prisma.membership.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: userId,
-                    workspaceId: workspaceId
-                }
-            }
+    if (!membership) {
+        return res.status(403).json({
+            message: "You do not have access to this workspace",
+            status: "failed",
         });
-
-        if (!membership) {
-            return res.status(403).json({
-                message: "You do not have access to this workspace",
-                status: "failed"
-            });
-        }
+    }
+}
 
         // Validate custom domain if provided.
         // The domain must belong to this workspace and must already be verified.
@@ -221,42 +229,53 @@ async function createLinkController(req, res) {
     }
 }
 
-
 // GET WORKSPACE LINKS CONTROLLER
 async function getWorkspaceLinksController(req, res) {
     try {
-        const userId = req.user.id;
-        const workspaceId = Number(req.params.workspaceId);
+        const isApiKeyRequest = Boolean(req.apiKey);
+
+        const workspaceId = isApiKeyRequest
+            ? req.apiKey.workspaceId
+            : Number(req.params.workspaceId);
+
+        const userId = isApiKeyRequest
+            ? null
+            : req.user.id;
 
         // Validate workspace ID
-        if (!Number.isInteger(workspaceId)) {
+        if (
+            !Number.isInteger(workspaceId) ||
+            workspaceId <= 0
+        ) {
             return res.status(400).json({
                 message: "Invalid workspace ID",
                 status: "failed"
             });
         }
 
-        // Check whether the user belongs to this workspace
-        const membership = await prisma.membership.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: userId,
-                    workspaceId: workspaceId
+        // Check workspace membership only for JWT requests
+        if (!isApiKeyRequest) {
+            const membership = await prisma.membership.findUnique({
+                where: {
+                    userId_workspaceId: {
+                        userId,
+                        workspaceId
+                    }
                 }
-            }
-        });
-
-        if (!membership) {
-            return res.status(403).json({
-                message: "You do not have access to this workspace",
-                status: "failed"
             });
+
+            if (!membership) {
+                return res.status(403).json({
+                    message: "You do not have access to this workspace",
+                    status: "failed"
+                });
+            }
         }
 
         // Fetch links belonging to this workspace
         const links = await prisma.link.findMany({
             where: {
-                workspaceId: workspaceId
+                workspaceId
             },
             orderBy: {
                 createdAt: "desc"
@@ -278,19 +297,18 @@ async function getWorkspaceLinksController(req, res) {
         return res.status(200).json({
             message: "Workspace links fetched successfully",
             status: "success",
-            links: links
+            links
         });
 
     } catch (error) {
         console.error("Get workspace links error:", error);
 
         return res.status(500).json({
-            message: error.message,
+            message: "Internal server error",
             status: "failed"
         });
     }
 }
-
 
 // GET LINK CONTROLLER
 async function getLinkController(req, res) {
@@ -659,10 +677,17 @@ async function updateLinkController(req, res) {
 // DELETE LINK CONTROLLER
 async function deleteLinkController(req, res) {
     try {
-        const userId = req.user.id;
-        const workspaceId = Number(req.params.workspaceId);
-        const linkId = Number(req.params.linkId);
+       const isApiKeyRequest = Boolean(req.apiKey);
 
+const workspaceId = isApiKeyRequest
+    ? req.apiKey.workspaceId
+    : Number(req.params.workspaceId);
+
+const userId = isApiKeyRequest
+    ? null
+    : req.user.id;
+
+const linkId = Number(req.params.linkId);
         // Validate IDs
         if (
             !Number.isInteger(workspaceId) ||
@@ -676,22 +701,25 @@ async function deleteLinkController(req, res) {
             });
         }
 
-        // Check workspace membership
-        const membership = await prisma.membership.findUnique({
-            where: {
-                userId_workspaceId: {
-                    userId: userId,
-                    workspaceId: workspaceId
-                }
+      
+       // Check workspace membership only for JWT requests
+if (!isApiKeyRequest) {
+    const membership = await prisma.membership.findUnique({
+        where: {
+            userId_workspaceId: {
+                userId,
+                workspaceId
             }
-        });
-
-        if (!membership) {
-            return res.status(403).json({
-                message: "You do not have access to this workspace",
-                status: "failed"
-            });
         }
+    });
+
+    if (!membership) {
+        return res.status(403).json({
+            message: "You do not have access to this workspace",
+            status: "failed"
+        });
+    }
+}
 
         // Check whether link belongs to this workspace
         const link = await prisma.link.findFirst({
