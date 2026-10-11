@@ -8,9 +8,11 @@ function rateLimit({
 } = {}) {
   return async function (req, res, next) {
     try {
-     const identifier = req.user?.id
-  ? `user:${req.user.id}`
-  : `ip:${req.ip}`;
+         const identifier = req.apiKey?.id 
+         ? `api-key:${req.apiKey.id}` 
+         : req.user?.id 
+         ? `user:${req.user.id}` 
+         : `ip:${req.ip}`;
      
   const key = `${keyPrefix}:${identifier}`;
 
@@ -21,8 +23,26 @@ function rateLimit({
   .ttl(key)
   .exec();
 
+// If the transaction failed or returned an unexpected result, fail open.
+if (
+  !results ||
+  results.length !== 3 ||
+  results.some(([error]) => error)
+) {
+  console.error("Rate limiter Redis transaction failed");
+  return next();
+}
+
 const currentCount = results[0][1];
 const remainingSeconds = results[2][1];
+
+if (
+  typeof currentCount !== "number" ||
+  typeof remainingSeconds !== "number"
+) {
+  console.error("Rate limiter returned invalid results");
+  return next();
+}
       res.setHeader("X-RateLimit-Limit", limit);
       res.setHeader(
         "X-RateLimit-Remaining",
@@ -34,14 +54,12 @@ const remainingSeconds = results[2][1];
   Math.floor(Date.now() / 1000) + Math.max(0, remainingSeconds)
 );
 
-      if (currentCount > limit) {
-        return res.status(429).json({
-          success: false,
-          message: "Too many requests. Please try again later.",
-        });
-      }
+     if (currentCount > limit) { if (remainingSeconds > 0)
+         { res.setHeader("Retry-After", remainingSeconds); 
 
-      next();
+         } return res.status(429).json({ success: false, message: "Too many requests. Please try again later.", }); }
+
+      return next();
     } catch (error) {
   console.error("Rate limiter Redis error:", error.message);
   return next();

@@ -243,17 +243,14 @@ async function getWorkspaceLinksController(req, res) {
             : req.user.id;
 
         // Validate workspace ID
-        if (
-            !Number.isInteger(workspaceId) ||
-            workspaceId <= 0
-        ) {
+        if (!Number.isInteger(workspaceId) || workspaceId <= 0) {
             return res.status(400).json({
                 message: "Invalid workspace ID",
                 status: "failed"
             });
         }
 
-        // Check workspace membership only for JWT requests
+        // Check workspace membership for JWT requests
         if (!isApiKeyRequest) {
             const membership = await prisma.membership.findUnique({
                 where: {
@@ -272,32 +269,162 @@ async function getWorkspaceLinksController(req, res) {
             }
         }
 
-        // Fetch links belonging to this workspace
-        const links = await prisma.link.findMany({
-            where: {
+        // Read query parameters
+        const search = typeof req.query.search === "string"
+            ? req.query.search.trim()
+            : "";
+
+            // Validate search query length
+if (search.length > 200) {
+    return res.status(400).json({
+        message: "Search query cannot exceed 200 characters",
+        status: "failed"
+    });
+}
+
+       const tags = typeof req.query.tag === "string"
+    ? [...new Set(
+        req.query.tag
+            .split(",")
+            .map((tag) => tag.trim().toLowerCase())
+            .filter(Boolean)
+    )]
+    : [];
+
+    if (tags.length > 10) {
+    return res.status(400).json({
+        message: "You can search by a maximum of 10 tags",
+        status: "failed"
+    });
+}
+
+if (tags.some((tag) => tag.length > 50)) {
+    return res.status(400).json({
+        message: "Each tag cannot exceed 50 characters",
+        status: "failed"
+    });
+}
+
+        const page = Number(req.query.page ?? 1);
+        const limit = Number(req.query.limit ?? 10);
+
+        // Validate pagination
+        if (
+            !Number.isInteger(page) ||
+            page < 1 ||
+            !Number.isInteger(limit) ||
+            limit < 1 ||
+            limit > 100
+        ) {
+            return res.status(400).json({
+                message: "Page must be a positive integer and limit must be between 1 and 100",
+                status: "failed"
+            });
+        }
+
+        const skip = (page - 1) * limit;
+
+        // Validate pagination offset
+if (!Number.isSafeInteger(skip)) {
+    return res.status(400).json({
+        message: "Page number is too large",
+        status: "failed"
+    });
+}
+
+        let matchingLinkIds = null;
+
+        // Search titles using PostgreSQL full-text search.
+        // Search URLs using case-insensitive partial matching.
+        if (search) {
+            matchingLinkIds = await prisma.$queryRaw`
+                SELECT l."id"
+                FROM "Link" AS l
+                WHERE l."workspaceId" = ${workspaceId}
+                  AND (
+                    to_tsvector('english', l."title")
+                        @@ plainto_tsquery('english', ${search})
+                    OR l."url" ILIKE ${"%" + search + "%"}
+                  )
+            `;
+
+            matchingLinkIds = matchingLinkIds.map(
+                (link) => link.id
+            );
+        }
+
+        // Build filters scoped to the current workspace.
+        const where = {
+            workspaceId,
+
+            ...(matchingLinkIds !== null
+                ? {
+                    id: {
+                        in: matchingLinkIds
+                    }
+                }
+                : {}),
+
+            ...(tags.length > 0
+    ? {
+        tags: {
+            some: {
+                name: {
+                    in: tags,
+                    mode: "insensitive"
+                },
                 workspaceId
-            },
-            orderBy: {
-                createdAt: "desc"
-            },
-            select: {
-                id: true,
-                url: true,
-                slug: true,
-                title: true,
-                description: true,
-                expiresAt: true,
-                workspaceId: true,
-                customDomainId: true,
-                createdAt: true,
-                updatedAt: true
             }
-        });
+        }
+    }
+    : {})
+
+        };
+
+        // Fetch the requested page and total count.
+        const [links, total] = await prisma.$transaction([
+            prisma.link.findMany({
+                where,
+                orderBy: {
+                    createdAt: "desc"
+                },
+                skip,
+                take: limit,
+                select: {
+                    id: true,
+                    url: true,
+                    slug: true,
+                    title: true,
+                    description: true,
+                    expiresAt: true,
+                    workspaceId: true,
+                    customDomainId: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    tags: {
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    }
+                }
+            }),
+
+            prisma.link.count({
+                where
+            })
+        ]);
 
         return res.status(200).json({
             message: "Workspace links fetched successfully",
             status: "success",
-            links
+            links,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
         });
 
     } catch (error) {
@@ -309,6 +436,7 @@ async function getWorkspaceLinksController(req, res) {
         });
     }
 }
+
 
 // GET LINK CONTROLLER
 async function getLinkController(req, res) {

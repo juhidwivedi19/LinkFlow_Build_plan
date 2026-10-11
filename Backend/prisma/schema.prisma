@@ -49,6 +49,7 @@ model Workspace {
   links         Link[]
   customDomains CustomDomain[]
   apiKeys       ApiKey[]
+  tags          Tag[]
 }
 
 enum Role {
@@ -98,6 +99,12 @@ model Link {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   customDomain CustomDomain? @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
+
+  tags Tag[]
+
+  @@index([workspaceId]) //helps retrieve links belonging to a workspace.
+  @@index([workspaceId, title]) // helps queries filtering by workspace and title.
+  @@index([workspaceId, createdAt]) //helps retrieve links in a workspace ordered by creation date, which will be useful for pagination.
 }
 
 enum LinkStatus {
@@ -177,5 +184,18 @@ model ApiKey {
   workspaceId Int
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  @@index([workspaceId])
+}
+
+model Tag {
+  id          Int      @id @default(autoincrement())
+  name        String
+  workspaceId Int
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  links     Link[]
+
+  @@unique([name, workspaceId])
   @@index([workspaceId])
 }

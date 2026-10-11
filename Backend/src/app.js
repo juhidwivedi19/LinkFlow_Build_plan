@@ -3,6 +3,8 @@ const express = require("express");
 const app=express();
 const cookieParser = require("cookie-parser");
 
+
+
 const authRouter = require("./routes/auth.routes");
 const workspaceRouter = require("./routes/workspace.routes.js");
 const linkRouter = require("./routes/link.routes.js");
@@ -17,6 +19,9 @@ const rateLimit = require("./middlewares/rateLimit.middleware");
 
 app.use(express.json());
 app.use(cookieParser());
+
+app.use( rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: "rate-limit:global", }) );
+
 
 app.use("/api/auth", authRouter);
 app.use("/api/workspaces", workspaceRouter);

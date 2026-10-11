@@ -1,5 +1,6 @@
 const express = require("express");
 
+const rateLimit = require("../middlewares/rateLimit.middleware.js")
 const {
   createLinkController,
    getWorkspaceLinksController,
