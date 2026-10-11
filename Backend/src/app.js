@@ -13,7 +13,7 @@ const qrRouter = require("./routes/qr.routes.js");
 const customDomainRouter = require("./routes/custom-domain.routes.js");
 const apiKeyRouter = require("./routes/apiKey.routes.js");
 const externalLinkRouter = require("./routes/externalLink.routes");
-
+const rateLimit = require("./middlewares/rateLimit.middleware");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -28,6 +28,12 @@ app.use("/api/qr", qrRouter);
 app.use("/api", customDomainRouter);
 app.use("/api", apiKeyRouter);
 app.use("/api/external", externalLinkRouter);
-
+app.use(
+  rateLimit({
+    limit: 100,
+    windowSeconds: 60,
+    keyPrefix: "rate-limit:global",
+  })
+);
 
 module.exports = app;
