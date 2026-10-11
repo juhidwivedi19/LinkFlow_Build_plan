@@ -32,4 +32,4 @@ module.exports = {
     setRedis,
     deleteRedis,
     deleteDashboardCache
-};
+};  

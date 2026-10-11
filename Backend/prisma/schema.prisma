@@ -199,3 +199,19 @@ model Tag {
   @@unique([name, workspaceId])
   @@index([workspaceId])
 }
+
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  workspaceId Int
+  userId      Int?
+  action      String
+  entityType  String
+  entityId    Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
