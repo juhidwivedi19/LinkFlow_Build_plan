@@ -9,7 +9,9 @@ const {
     deleteDashboardCache
 } = require("../services/redis.service.js");
 
-
+const {
+    createActivityLog
+} = require("../services/activityLog.service.js");
 // CREATE LINK CONTROLLER
 async function createLinkController(req, res) {
     try {
@@ -171,26 +173,40 @@ if (!isApiKeyRequest) {
             passwordHash = await bcrypt.hash(password, 10);
         }
 
-        // Create link
-        const link = await prisma.link.create({
-            data: {
-                url: url.trim(),
-                slug: finalSlug,
-                title: title.trim(),
-                description: description
-                    ? description.trim()
-                    : null,
-                expiresAt: parsedExpiresAt,
-                passwordHash: passwordHash,
-                workspaceId: workspaceId,
+// Create link and activity log atomically.
+const link = await prisma.$transaction(async (tx) => {
+    const newLink = await tx.link.create({
+        data: {
+            url: url.trim(),
+            slug: finalSlug,
+            title: title.trim(),
+            description: description
+                ? description.trim()
+                : null,
+            expiresAt: parsedExpiresAt,
+            passwordHash,
+            workspaceId,
+            customDomainId: customDomainId
+                ? Number(customDomainId)
+                : null
+        }
+    });
 
-                // Store custom domain when provided.
-                // Otherwise the link uses the default LinkFlow domain.
-                customDomainId: customDomainId
-                    ? Number(customDomainId)
-                    : null
-            }
-        });
+    await createActivityLog({
+        workspaceId: newLink.workspaceId,
+        userId,
+        action: "LINK_CREATED",
+        entityType: "Link",
+        entityId: newLink.id,
+        metadata: {
+            title: newLink.title,
+            slug: newLink.slug
+        },
+        tx
+    });
+
+    return newLink;
+});
 
         // Invalidate dashboard cache because a new link
         // can change dashboard statistics and Top Links.
@@ -750,26 +766,44 @@ async function updateLinkController(req, res) {
             updateData.status = status;
         }
 
-        // Save changes and return the updated link.
-        const updatedLink = await prisma.link.update({
-            where: {
-                id: linkId
-            },
-            data: updateData,
-            select: {
-                id: true,
-                url: true,
-                slug: true,
-                title: true,
-                description: true,
-                expiresAt: true,
-                status: true,
-                workspaceId: true,
-                customDomainId: true,
-                createdAt: true,
-                updatedAt: true
-            }
+          // Save changes and create activity log atomically.
+        const updatedLink = await prisma.$transaction(async (tx) => {
+            const link = await tx.link.update({
+                where: {
+                    id: linkId
+                },
+                data: updateData,
+                select: {
+                    id: true,
+                    url: true,
+                    slug: true,
+                    title: true,
+                    description: true,
+                    expiresAt: true,
+                    status: true,
+                    workspaceId: true,
+                    customDomainId: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            });
+
+            await createActivityLog({
+                workspaceId: link.workspaceId,
+                userId,
+                action: "LINK_UPDATED",
+                entityType: "Link",
+                entityId: link.id,
+                metadata: {
+                    title: link.title,
+                    slug: link.slug
+                },
+                tx
+            });
+
+            return link;
         });
+      
 
         // Remove cached entries so the redirect uses updated link data.
         await deleteRedis(`link:${existingLink.slug}`);
@@ -864,12 +898,27 @@ if (!isApiKeyRequest) {
             });
         }
 
-        // Delete link
-        await prisma.link.delete({
-            where: {
-                id: linkId
-            }
-        });
+      // Delete link and create activity log atomically
+await prisma.$transaction(async (tx) => {
+    await tx.link.delete({
+        where: {
+            id: linkId
+        }
+    });
+
+    await createActivityLog({
+        workspaceId,
+        userId,
+        action: "LINK_DELETED",
+        entityType: "Link",
+        entityId: link.id,
+        metadata: {
+            title: link.title,
+            slug: link.slug
+        },
+        tx
+    });
+});
 
         // Remove deleted link from Redis cache
         await deleteRedis(`link:${link.slug}`);

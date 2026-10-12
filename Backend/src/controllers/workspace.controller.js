@@ -1,4 +1,5 @@
 const prisma = require("../config/db.config.js")
+const { createActivityLog } = require("../services/activityLog.service.js");
 
 
 //CREATE WORKSPACE CONTROLLER
@@ -39,25 +40,38 @@ async function createWorkspaceController(req,res){
     }
 
     //create workspace + owner membership automatically
-    const workspace = await prisma.$transaction(async (tx) =>{
-
-        const newWorkspace = await tx.workspace.create({
-            data:{
-                name: name.trim(),
-                slug: slug.trim().toLowerCase()
-            }
-        });
-
-        await tx.membership.create({
-            data:{
-                userId: userId,
-                workspaceId: newWorkspace.id,
-                role:"OWNER"
-            }
-        });
-
-        return newWorkspace;
+  // Create workspace, owner membership, and activity log atomically
+const workspace = await prisma.$transaction(async (tx) => {
+    const newWorkspace = await tx.workspace.create({
+        data: {
+            name: name.trim(),
+            slug: slug.trim().toLowerCase()
+        }
     });
+
+    await tx.membership.create({
+        data: {
+            userId: userId,
+            workspaceId: newWorkspace.id,
+            role: "OWNER"
+        }
+    });
+
+    await createActivityLog({
+        workspaceId: newWorkspace.id,
+        userId: userId,
+        action: "WORKSPACE_CREATED",
+        entityType: "Workspace",
+        entityId: newWorkspace.id,
+        metadata: {
+            name: newWorkspace.name,
+            slug: newWorkspace.slug
+        },
+        tx
+    });
+
+    return newWorkspace;
+});
 
     return res.status(201).json({
         message: "Workspace created successfully",
@@ -261,24 +275,30 @@ if (slug !== undefined) {
 
             updateData.slug = normalizedSlug;
         }
+// Update workspace and record activity atomically
+const workspace = await prisma.$transaction(async (tx) => {
+    const updatedWorkspace = await tx.workspace.update({
+        where: {
+            id: workspaceId
+        },
+        data: updateData
+    });
 
-        const workspace = await prisma.workspace.update({
-            where: {
-                id: workspaceId
-            },
-            data: updateData
-        });
+    await createActivityLog({
+        workspaceId: updatedWorkspace.id,
+        userId: userId,
+        action: "WORKSPACE_UPDATED",
+        entityType: "Workspace",
+        entityId: updatedWorkspace.id,
+        metadata: {
+            name: updatedWorkspace.name,
+            slug: updatedWorkspace.slug
+        },
+        tx
+    });
 
-        return res.status(200).json({
-            message: "Workspace updated successfully",
-            status: "success",
-             workspace: {
-                id: workspace.id,
-                name: workspace.name,
-                slug: workspace.slug,
-                updatedAt: workspace.updatedAt
-             }
-        });
+    return updatedWorkspace;
+});
 
     }catch(error){
         console.error("Update workspace error:",error);
@@ -321,12 +341,42 @@ async function deleteWorkspaceController(req,res){
             });
           }
 
-        await prisma.workspace.delete({
-            where: {
-                id: workspaceId
-            }
-        });
+      // Delete workspace and record activity atomically
+await prisma.$transaction(async (tx) => {
+    const workspace = await tx.workspace.findUnique({
+        where: {
+            id: workspaceId
+        },
+        select: {
+            id: true,
+            name: true,
+            slug: true
+        }
+    });
 
+    if (!workspace) {
+        throw new Error("Workspace not found");
+    }
+
+    await createActivityLog({
+        workspaceId: workspace.id,
+        userId: userId,
+        action: "WORKSPACE_DELETED",
+        entityType: "Workspace",
+        entityId: workspace.id,
+        metadata: {
+            name: workspace.name,
+            slug: workspace.slug
+        },
+        tx
+    });
+
+    await tx.workspace.delete({
+        where: {
+            id: workspaceId
+        }
+    });
+});
         return res.status(200).json({
             message: "Workspace deleted successfully",
             status: "success"
@@ -512,6 +562,18 @@ async function addWorkspaceMemberController(req, res) {
             }
         });
 
+        await createActivityLog({
+    workspaceId,
+    userId: currentUserId,
+    action: "TEAM_MEMBER_ADDED",
+    entityType: "Membership",
+    entityId: member.id,
+    metadata: {
+        email: member.user.email,
+        role: member.role
+    }
+});
+
         return res.status(201).json({
             message: "Member added successfully",
             status: "success",
@@ -535,7 +597,6 @@ async function addWorkspaceMemberController(req, res) {
 
 
 //CHANGE MEMBERS ROLE
-// CHANGE MEMBER ROLE
 async function updateMemberRoleController(req, res) {
     try {
         const currentUserId = req.user.id;
@@ -630,15 +691,33 @@ async function updateMemberRoleController(req, res) {
         }
 
         // Update the member's role.
-        const updatedMembership = await prisma.membership.update({
-            where: {
-                id: targetMembership.id
-            },
-            data: {
-                role: role
-            }
-        });
+      // Update member role and create activity log atomically.
+const updatedMembership = await prisma.$transaction(async (tx) => {
+    const updated = await tx.membership.update({
+        where: {
+            id: targetMembership.id
+        },
+        data: {
+            role
+        }
+    });
 
+    await createActivityLog({
+        workspaceId,
+        userId: currentUserId,
+        action: "TEAM_MEMBER_ROLE_UPDATED",
+        entityType: "Membership",
+        entityId: updated.id,
+        metadata: {
+            targetUserId,
+            previousRole: targetMembership.role,
+            newRole: updated.role
+        },
+        tx
+    });
+
+    return updated;
+});
         return res.status(200).json({
             message: "Member role updated successfully",
             status: "success",
@@ -730,12 +809,27 @@ async function removeWorkspaceMemberController(req, res) {
                 status: "failed"
             });
         }
+// Remove member and record the activity atomically.
+await prisma.$transaction(async (tx) => {
+    await tx.membership.delete({
+        where: {
+            id: targetMembership.id
+        }
+    });
 
-        await prisma.membership.delete({
-            where: {
-                id: targetMembership.id
-            }
-        });
+    await createActivityLog({
+        workspaceId,
+        userId: currentUserId,
+        action: "TEAM_MEMBER_REMOVED",
+        entityType: "Membership",
+        entityId: targetMembership.id,
+        metadata: {
+            removedUserId: targetUserId,
+            previousRole: targetMembership.role
+        },
+        tx
+    });
+});
 
         return res.status(200).json({
             message: "Member removed successfully",

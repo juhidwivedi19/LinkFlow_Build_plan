@@ -1,5 +1,6 @@
 const prisma = require("../config/db.config.js");
 const { createQrCode, getQrDownloadUrl } = require("../services/qr.service.js");
+const { createActivityLog } = require("../services/activityLog.service.js");
 
 async function createQrCodeController(req, res) {
     try {
@@ -33,6 +34,18 @@ async function createQrCodeController(req, res) {
         }
 
         const qrCode = await createQrCode(Number(linkId));
+
+        await createActivityLog({
+    workspaceId: link.workspaceId,
+    userId: req.user.id,
+    action: "QR_CODE_GENERATED",
+    entityType: "Link",
+    entityId: link.id,
+    metadata: {
+        qrCodeId: qrCode.id,
+        status: qrCode.status
+    }
+});
 
         return res.status(202).json({
             message: "QR code generation started",

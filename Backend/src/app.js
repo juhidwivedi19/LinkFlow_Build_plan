@@ -16,6 +16,8 @@ const customDomainRouter = require("./routes/custom-domain.routes.js");
 const apiKeyRouter = require("./routes/apiKey.routes.js");
 const externalLinkRouter = require("./routes/externalLink.routes");
 const rateLimit = require("./middlewares/rateLimit.middleware");
+const activityLogRouter = require("./routes/activityLog.routes.js");
+
 
 app.use(express.json());
 app.use(cookieParser());
@@ -40,5 +42,7 @@ app.use(
     keyPrefix: "rate-limit:global",
   })
 );
+app.use("/api/workspaces", activityLogRouter);
+
 
 module.exports = app;
