@@ -1,6 +1,6 @@
 const prisma = require("../config/db.config.js")
 const { createActivityLog } = require("../services/activityLog.service.js");
-
+const { createNotification } = require("../services/notification.service.js");
 
 //CREATE WORKSPACE CONTROLLER
 async function createWorkspaceController(req,res){
@@ -544,36 +544,59 @@ async function addWorkspaceMemberController(req, res) {
                 status: "failed"
             });
         }
-
-        const member = await prisma.membership.create({
-            data: {
-                userId: user.id,
-                workspaceId: workspaceId,
-                role: role
+const member = await prisma.$transaction(async (tx) => {
+    const newMember = await tx.membership.create({
+        data: {
+            userId: user.id,
+            workspaceId,
+            role
+        },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
             },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true
-                    }
+            workspace: {
+                select: {
+                    name: true
                 }
             }
-        });
+        }
+    });
 
-        await createActivityLog({
-    workspaceId,
-    userId: currentUserId,
-    action: "TEAM_MEMBER_ADDED",
-    entityType: "Membership",
-    entityId: member.id,
-    metadata: {
-        email: member.user.email,
-        role: member.role
-    }
+    //RECORD THE ACTIVITY LOG
+    await createActivityLog({
+        workspaceId,
+        userId: currentUserId,
+        action: "TEAM_MEMBER_ADDED",
+        entityType: "Membership",
+        entityId: newMember.id,
+        metadata: {
+            email: newMember.user.email,
+            role: newMember.role
+        },
+        tx
+    });
+
+    //CREATE THE  notification 
+    await createNotification({
+        userId: newMember.user.id,
+        type: "TEAM_INVITATION",
+        title: "Added to a workspace",
+        message: `You have been added to the workspace "${newMember.workspace.name}" with the role ${newMember.role}.`,
+        metadata: {
+            workspaceId,
+            workspaceName: newMember.workspace.name,
+            role: newMember.role
+        },
+        tx
+    });
+
+    return newMember;
 });
-
         return res.status(201).json({
             message: "Member added successfully",
             status: "success",

@@ -17,6 +17,7 @@ const apiKeyRouter = require("./routes/apiKey.routes.js");
 const externalLinkRouter = require("./routes/externalLink.routes");
 const rateLimit = require("./middlewares/rateLimit.middleware");
 const activityLogRouter = require("./routes/activityLog.routes.js");
+const notificationRouter = require("./routes/notification.routes.js");
 
 
 app.use(express.json());
@@ -43,6 +44,6 @@ app.use(
   })
 );
 app.use("/api/workspaces", activityLogRouter);
-
+app.use("/api/notifications", notificationRouter);
 
 module.exports = app;

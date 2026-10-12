@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const emailService = require("../services/email.service.js");
+const { createNotification } = require("../services/notification.service.js");
 
 const prisma = require("../config/db.config.js");
 
@@ -425,19 +426,27 @@ async function ResetPasswordController(req, res) {
 
         // Update Password
 
-        await prisma.user.update({
-            where: {
-                id: user.id
-            },
-            data: {
-                password: hashedPassword,
+        await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+        where: { id: user.id },
+        data: {
+            password: hashedPassword,
+            resetPasswordToken: null,
+            resetPasswordExpires: null
+        }
+    });
 
-                // Remove Reset Token After Password Reset
-
-                resetPasswordToken: null,
-                resetPasswordExpires: null
-            }
-        });
+    await createNotification({
+        userId: user.id,
+        type: "PASSWORD_CHANGED",
+        title: "Password changed",
+        message: "Your account password was changed successfully.",
+        metadata: {
+            changedAt: new Date().toISOString()
+        },
+        tx
+    });
+});
 
 
         // Send Response
