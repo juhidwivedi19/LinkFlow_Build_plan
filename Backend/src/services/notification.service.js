@@ -6,6 +6,7 @@ async function createNotification({
     title,
     message,
     metadata = null,
+    linkId = null,
     tx = prisma
 }) {
     if (!Number.isSafeInteger(userId) || userId <= 0) {
@@ -31,13 +32,21 @@ async function createNotification({
         throw new Error("Notification message is required");
     }
 
+    if (
+        linkId !== null &&
+        (!Number.isSafeInteger(linkId) || linkId <= 0)
+    ) {
+        throw new Error("linkId must be a positive integer or null");
+    }
+
     return tx.notification.create({
         data: {
             userId,
             type,
             title: title.trim(),
             message: message.trim(),
-            metadata
+            metadata,
+            linkId
         }
     });
 }

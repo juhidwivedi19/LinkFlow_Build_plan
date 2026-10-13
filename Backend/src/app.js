@@ -18,7 +18,7 @@ const externalLinkRouter = require("./routes/externalLink.routes");
 const rateLimit = require("./middlewares/rateLimit.middleware");
 const activityLogRouter = require("./routes/activityLog.routes.js");
 const notificationRouter = require("./routes/notification.routes.js");
-
+const reportRouter = require("./routes/report.routes.js");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -45,5 +45,7 @@ app.use(
 );
 app.use("/api/workspaces", activityLogRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/reports", reportRouter);
+
 
 module.exports = app;

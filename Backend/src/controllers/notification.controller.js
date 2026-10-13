@@ -110,7 +110,38 @@ async function MarkNotificationAsReadController(req, res) {
     }
 }
 
+async function MarkAllNotificationsAsReadController(req, res) {
+    try {
+        const userId = req.user.id;
+
+        const result = await prisma.notification.updateMany({
+            where: {
+                userId,
+                isRead: false
+            },
+            data: {
+                isRead: true,
+                readAt: new Date()
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "All notifications marked as read",
+            updatedCount: result.count
+        });
+    } catch (error) {
+        console.error("Mark all notifications as read error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to mark all notifications as read"
+        });
+    }
+}
+
 module.exports = {
     GetNotificationsController,
-    MarkNotificationAsReadController
+    MarkNotificationAsReadController,
+    MarkAllNotificationsAsReadController
 };

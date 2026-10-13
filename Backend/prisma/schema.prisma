@@ -27,7 +27,7 @@ model user {
 
   refreshTokens RefreshToken[]
   memberships   Membership[]
-  notifications  Notification[]
+  notifications Notification[]
 }
 
 model RefreshToken {
@@ -51,6 +51,7 @@ model Workspace {
   customDomains CustomDomain[]
   apiKeys       ApiKey[]
   tags          Tag[]
+  reports       Report[]
 }
 
 enum Role {
@@ -216,21 +217,38 @@ model ActivityLog {
   @@index([action, createdAt])
 }
 
-
 model Notification {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
   type      String
   title     String
   message   String
   metadata  Json?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  linkId    Int?
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
   readAt    DateTime?
 
   user user @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, type, linkId])
   @@index([userId, isRead, createdAt])
   @@index([userId, createdAt])
   @@index([type, createdAt])
+}
+
+model Report {
+  id          Int      @id @default(autoincrement())
+  workspaceId Int
+  reportType  String
+  startDate   DateTime
+  endDate     DateTime
+  storageKey  String
+  status      String   @default("COMPLETED")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }
