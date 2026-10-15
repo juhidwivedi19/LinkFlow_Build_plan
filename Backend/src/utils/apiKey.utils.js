@@ -5,13 +5,12 @@ Hash: Accept a plaintext API key and return its SHA-256 hash.  */
 
 const crypto = require("crypto");
 
-function generateApiKey(){
+function generateApiKey() {
     const secret = crypto.randomBytes(32).toString("hex");
     const apiKey = `lf_live_${secret}`;
-    const Prefix = apiKey.slice(0,16);
+    const keyPrefix = apiKey.slice(0, 16);
 
-    return {apiKey, keyPrefix};
-
+    return { apiKey, keyPrefix };
 }
 
 function hashApiKey(apiKey){

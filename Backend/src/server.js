@@ -10,6 +10,7 @@ const { initializeSocket } = require("./config/socket.config.js");
 const analyticsWorker = require("./workers/analytics.worker.js");
 const linkExpirationWorker = require("./workers/linkExpiration.worker.js");
 const reportWorker = require("./workers/report.worker.js");
+const qrWorker = require("./workers/qr.worker.js");
 
 const linkExpirationQueue = require("./queues/linkExpiration.queue.js");
 const reportQueue = require("./queues/report.queue.js");
@@ -50,6 +51,12 @@ async function cleanupResources() {
     } catch (error) {
         console.error("Report worker cleanup error:", error.message);
     }
+
+    try {
+    await qrWorker.close();
+} catch (error) {
+    console.error("QR worker cleanup error:", error.message);
+}
 
     try {
         await linkExpirationWorker.close();

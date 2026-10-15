@@ -3,10 +3,14 @@ const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware.js");
 const { authorize } = require("../middlewares/rbac.middleware.js");
 
-const {
+
+   const {
     createCustomDomainController,
-    verifyCustomDomainController,deleteCustomDomainController
-} = require("../controllers/custom-domain.controller.js");
+    verifyCustomDomainController,
+    getCustomDomainsController,
+    deleteCustomDomainController
+}= require("../controllers/custom-domain.controller.js");
+
 const router = express.Router();
 
 // Add a custom domain to a workspace.
@@ -25,6 +29,13 @@ router.post(
     authMiddleware.authMiddleware,
     authorize("MANAGE_TEAM"),
     verifyCustomDomainController
+);
+
+router.get(
+    "/workspaces/:workspaceId/domains",
+    authMiddleware.authMiddleware,
+    authorize("VIEW_WORKSPACE"),
+    getCustomDomainsController
 );
 
 

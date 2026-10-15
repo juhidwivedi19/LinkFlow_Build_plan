@@ -2,7 +2,7 @@
 const redis = require("../config/redis.config");
 
 function rateLimit({
-  limit = 100,
+  limit = 5,
   windowSeconds = 60,
   keyPrefix = "rate-limit",
 } = {}) {

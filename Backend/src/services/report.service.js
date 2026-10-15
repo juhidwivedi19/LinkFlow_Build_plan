@@ -1,5 +1,4 @@
-
-const prisma= require("../config/db.config.js");
+const prisma = require("../config/db.config.js");
 
 const {
     getTotalClicksByWorkspace,
@@ -20,44 +19,41 @@ const crypto = require("crypto");
 
 /**
  * Calculate the reporting period for a weekly or monthly report.
- *
  * Weekly reports cover the previous Monday through Sunday.
  * Monthly reports cover the previous calendar month.
- *
- * Using explicit boundaries ensures that rerunning a report for the
- * same period doesn't accidentally include clicks from another period.
  */
-function getReportPeriod(reportType, referenceDate = new Date()) {
-    if (!(referenceDate instanceof Date) ||
-        Number.isNaN(referenceDate.getTime())) {
+async function getReportPeriod(reportType, referenceDate = new Date()) {
+    if (
+        !(referenceDate instanceof Date) ||
+        Number.isNaN(referenceDate.getTime())
+    ) {
         throw new Error("Invalid reference date");
     }
 
-    const end = new Date(referenceDate);
     const start = new Date(referenceDate);
-
-    // Normalize to local calendar boundaries.
-    end.setHours(23, 59, 59, 999);
-    start.setHours(0, 0, 0, 0);
+    const end = new Date(referenceDate);
 
     if (reportType === "WEEKLY") {
-        // JavaScript: Sunday = 0, Monday = 1, ..., Saturday = 6.
-        // Calculate the most recent completed Monday-Sunday period.
         const daysSinceMonday = (referenceDate.getDay() + 6) % 7;
 
         start.setDate(referenceDate.getDate() - daysSinceMonday - 7);
+        start.setHours(0, 0, 0, 0);
+
         end.setTime(start.getTime());
         end.setDate(start.getDate() + 6);
         end.setHours(23, 59, 59, 999);
     } else if (reportType === "MONTHLY") {
-        // Previous calendar month: first day through final day.
-        start.setDate(1);
-        start.setMonth(start.getMonth() - 1);
-        start.setHours(0, 0, 0, 0);
+    // First day of the previous calendar month
+    start.setDate(1);
+    start.setMonth(start.getMonth() - 1);
+    start.setHours(0, 0, 0, 0);
 
-        end.setDate(0);
-        end.setHours(23, 59, 59, 999);
-    } else {
+    // Last day of the previous calendar month
+    end.setDate(1);
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() - 1);
+    end.setHours(23, 59, 59, 999);
+} else {
         throw new Error("Report type must be WEEKLY or MONTHLY");
     }
 
@@ -65,12 +61,9 @@ function getReportPeriod(reportType, referenceDate = new Date()) {
 }
 
 /**
- * Build a Prisma-compatible date filter for repository functions.
- *
- * The repository uses occurredAt.gte and occurredAt.lte to restrict
- * analytics events to the selected reporting period.
+ * Build a Prisma-compatible date filter.
  */
-function buildDateFilter(start, end) {
+async function buildDateFilter(start, end) {
     return {
         occurredAt: {
             gte: start,
@@ -80,10 +73,7 @@ function buildDateFilter(start, end) {
 }
 
 /**
- * Generate a workspace analytics report for a completed period.
- *
- * This function gathers data only. It does not schedule jobs or send
- * emails; those responsibilities belong to the scheduler and worker.
+ * Generate the analytics data for a workspace.
  */
 async function generateReport({
     workspaceId,
@@ -97,8 +87,6 @@ async function generateReport({
     const { start, end } = getReportPeriod(reportType, referenceDate);
     const dateFilter = buildDateFilter(start, end);
 
-    // Run independent database aggregations concurrently to reduce
-    // the time needed to assemble the report.
     const [
         totalClicks,
         dailyClicks,
@@ -140,8 +128,7 @@ async function generateReport({
 }
 
 /**
- * Escape CSV fields so commas, quotes, and newlines don't break
- * the CSV structure.
+ * Escape a CSV field.
  */
 function escapeCsvField(value) {
     if (value === null || value === undefined) {
@@ -153,19 +140,73 @@ function escapeCsvField(value) {
 }
 
 /**
- * Convert a report's daily click totals into CSV.
- *
- * This produces a simple, spreadsheet-friendly export. More detailed
- * exports can be added later without changing report generation.
+ * Convert all report sections into CSV.
  */
-function generateReportCsv(report) {
+
+   async function generateReportCsv(report) {
+    if (
+        !report ||
+        !report.period ||
+        !report.summary ||
+        !Array.isArray(report.dailyClicks) ||
+        !Array.isArray(report.topLinks) ||
+        !report.breakdown ||
+        !Array.isArray(report.breakdown.countries) ||
+        !Array.isArray(report.breakdown.browsers) ||
+        !Array.isArray(report.breakdown.devices) ||
+        !Array.isArray(report.breakdown.referrers)
+    ) {
+        throw new Error("Invalid report data supplied for CSV generation");
+    }
     const rows = [
+        ["LinkFlow Analytics Report"],
+        ["Workspace ID", report.workspaceId],
+        ["Report Type", report.reportType],
+        ["Period Start", report.period.start],
+        ["Period End", report.period.end],
+        ["Generated At", report.generatedAt],
+        [],
+        ["Summary"],
+        ["Metric", "Value"],
+        ["Total Clicks", report.summary.totalClicks],
+        [],
+        ["Daily Clicks"],
         ["Date", "Clicks"],
         ...report.dailyClicks.map((item) => [
             item.date,
             item.clicks
+        ]),
+        [],
+        ["Top Links"],
+        ["Link", "Clicks"],
+        ...report.topLinks.map((item) => [
+            item.title || item.shortCode || item.url || item.linkId || "Unknown",
+            item.clicks
         ])
     ];
+
+    const sections = [
+        ["Countries", report.breakdown.countries],
+        ["Browsers", report.breakdown.browsers],
+        ["Devices", report.breakdown.devices],
+        ["Referrers", report.breakdown.referrers]
+    ];
+
+    for (const [sectionName, items] of sections) {
+        rows.push([], [sectionName], ["Name", "Clicks"]);
+
+        for (const item of items) {
+            rows.push([
+                item.name ||
+                    item.country ||
+                    item.browser ||
+                    item.device ||
+                    item.referrer ||
+                    "Unknown",
+                item.clicks
+            ]);
+        }
+    }
 
     return rows
         .map((row) => row.map(escapeCsvField).join(","))
@@ -173,13 +214,27 @@ function generateReportCsv(report) {
 }
 
 /**
- * Upload a CSV report to S3 and return a temporary download URL.
+ * Save report metadata independently of CSV export.
  *
- * The random suffix prevents different report generations from
- * overwriting one another. Access control must be enforced by the
- * API before returning the signed URL to a user.
+ * Requires Report.storageKey to be nullable in schema.prisma.
  */
+async function saveReportMetadata(report, storageKey = null) {
+    return prisma.report.create({
+        data: {
+            workspaceId: report.workspaceId,
+            reportType: report.reportType,
+            startDate: new Date(report.period.start),
+            endDate: new Date(report.period.end),
+            storageKey,
+            status: storageKey ? "COMPLETED" : "GENERATED"
+        }
+    });
+}
 
+/**
+ * Upload the CSV and return its metadata and temporary download URL.
+ * This function does not create a second database record.
+ */
 async function exportReportCsv(report) {
     const csv = generateReportCsv(report);
     const buffer = Buffer.from(csv, "utf8");
@@ -191,31 +246,19 @@ async function exportReportCsv(report) {
 
     await uploadFile(buffer, key, "text/csv");
 
-    const savedReport = await prisma.report.create({
-        data: {
-            workspaceId: report.workspaceId,
-            reportType: report.reportType,
-            startDate: new Date(report.period.start),
-            endDate: new Date(report.period.end),
-            storageKey: key,
-            status: "COMPLETED"
-        }
-    });
-
     const downloadUrl = await getDownloadUrl(key);
 
     return {
-        id: savedReport.id,
         key,
         downloadUrl,
         expiresInSeconds: 900
     };
 }
 
-
 module.exports = {
     getReportPeriod,
     generateReport,
     generateReportCsv,
+    saveReportMetadata,
     exportReportCsv
 };

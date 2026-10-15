@@ -57,7 +57,7 @@ model Workspace {
 enum Role {
   OWNER
   ADMIN
-  Editor
+  EDITOR
   VIEWER
 }
 
@@ -243,7 +243,7 @@ model Report {
   reportType  String
   startDate   DateTime
   endDate     DateTime
-  storageKey  String
+  storageKey  String?
   status      String   @default("COMPLETED")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
