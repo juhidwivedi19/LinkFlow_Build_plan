@@ -42,6 +42,7 @@ async function createWorkspaceController(req,res){
     //create workspace + owner membership automatically
   // Create workspace, owner membership, and activity log atomically
 const workspace = await prisma.$transaction(async (tx) => {
+
     const newWorkspace = await tx.workspace.create({
         data: {
             name: name.trim(),
@@ -257,14 +258,14 @@ if (slug !== undefined) {
 
             const normalizedSlug = slug.trim().toLowerCase();
            
-            const existingWorkspace = await prisma.workspace.findUnique({
-                where: {
-                    slug: normalizedSlug,
-                    NOT: {
-                        id: workspaceId
-                    }
-                }
-            });
+           const existingWorkspace = await prisma.workspace.findFirst({
+    where: {
+        slug: normalizedSlug,
+        NOT: {
+            id: workspaceId
+        }
+    }
+});
 
             if (existingWorkspace ) {
                 return res.status(400).json({
@@ -299,7 +300,11 @@ const workspace = await prisma.$transaction(async (tx) => {
 
     return updatedWorkspace;
 });
-
+return res.status(200).json({
+    message: "Workspace updated successfully",
+    status: "success",
+    workspace
+});
     }catch(error){
         console.error("Update workspace error:",error);
 
@@ -906,11 +911,25 @@ async function leaveWorkspaceController(req, res) {
             });
         }
 
-        await prisma.membership.delete({
-            where: {
-                id: membership.id
-            }
-        });
+      await prisma.$transaction(async (tx) => {
+    await tx.membership.delete({
+        where: {
+            id: membership.id
+        }
+    });
+
+    await createActivityLog({
+        workspaceId,
+        userId,
+        action: "WORKSPACE_LEFT",
+        entityType: "Membership",
+        entityId: membership.id,
+        metadata: {
+            previousRole: membership.role
+        },
+        tx
+    });
+});
 
         return res.status(200).json({
             message: "You have left the workspace successfully",

@@ -26,7 +26,8 @@
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.0.11",
     "qrcode": "^1.5.4",
-    "socket.io": "^4.8.4"
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
