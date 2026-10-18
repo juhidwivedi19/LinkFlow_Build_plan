@@ -3,6 +3,7 @@ const express = require("express");
 const app=express();
 const cookieParser = require("cookie-parser");
 
+const cors = require("cors");
 
 
 const authRouter = require("./routes/auth.routes");
@@ -23,6 +24,13 @@ const reportRouter = require("./routes/report.routes.js");
 app.use(express.json());
 app.use(cookieParser());
 
+app.use(
+    cors({
+         origin: process.env.FRONTEND_URL,
+        credentials: true
+    })
+);
+
 app.use( rateLimit({ limit: 100, windowSeconds: 60, keyPrefix: "rate-limit:global", }) );
 
 
@@ -36,13 +44,7 @@ app.use("/api/qr", qrRouter);
 app.use("/api", customDomainRouter);
 app.use("/api", apiKeyRouter);
 app.use("/api/external", externalLinkRouter);
-app.use(
-  rateLimit({
-    limit: 100,
-    windowSeconds: 60,
-    keyPrefix: "rate-limit:global",
-  })
-);
+
 app.use("/api/workspaces", activityLogRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/reports", reportRouter);

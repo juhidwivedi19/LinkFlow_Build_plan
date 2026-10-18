@@ -112,6 +112,7 @@ model Link {
 enum LinkStatus {
   ACTIVE
   DISABLED
+  EXPIRED
 }
 
 model AnalyticsEvent {
