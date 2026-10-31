@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -7,6 +8,7 @@ import {
   Loader2,
   CheckCircle,
   ArrowLeft,
+  AlertCircle,
 } from "lucide-react";
 import { apiRequest } from "../api/client";
 
@@ -34,28 +36,38 @@ export default function ResetPassword() {
       ...previous,
       [name]: value,
     }));
+
+    setError("");
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    if (loading) return;
+
     setError("");
 
     if (!token) {
-      setError("The password reset link is missing its token.");
+      setError(
+        "The password reset link is missing its token. Request a new reset link."
+      );
       return;
     }
 
-    if (!formData.password || !formData.confirmPassword) {
+    const password = formData.password;
+    const confirmPassword = formData.confirmPassword;
+
+    if (!password || !confirmPassword) {
       setError("Please complete both password fields.");
       return;
     }
 
-    if (formData.password.length < 8) {
+    if (password.length < 8) {
       setError("Your password must contain at least 8 characters.");
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       setError("The passwords do not match.");
       return;
     }
@@ -67,14 +79,15 @@ export default function ResetPassword() {
         method: "POST",
         body: JSON.stringify({
           token,
-          password: formData.password,
+          password,
         }),
       });
 
       setSuccess(true);
     } catch (err) {
       setError(
-        err.message || "Unable to reset your password. Request a new reset link."
+        err.message ||
+          "Unable to reset your password. The link may have expired."
       );
     } finally {
       setLoading(false);
@@ -84,12 +97,17 @@ export default function ResetPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-3">
+        <Link
+          to="/"
+          className="mb-8 flex items-center justify-center gap-3"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500">
             <Link2 size={24} />
           </div>
 
-          <span className="text-2xl font-bold tracking-tight">LinkFlow</span>
+          <span className="text-2xl font-bold tracking-tight">
+            LinkFlow
+          </span>
         </Link>
 
         <div className="rounded-2xl border border-white/10 bg-slate-900 p-8 shadow-2xl">
@@ -104,8 +122,8 @@ export default function ResetPassword() {
               </h1>
 
               <p className="mt-3 text-sm leading-6 text-slate-400">
-                Your password has been updated. You can now log in using your
-                new password.
+                Your password has been updated. You can now log in using
+                your new password.
               </p>
 
               <button
@@ -116,9 +134,41 @@ export default function ResetPassword() {
                 Go to login
               </button>
             </div>
+          ) : !token ? (
+            <div className="text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+                <AlertCircle size={30} />
+              </div>
+
+              <h1 className="mt-5 text-2xl font-bold">
+                Invalid reset link
+              </h1>
+
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                This link is missing its reset token. Request a new
+                password reset email to continue.
+              </p>
+
+              <Link
+                to="/forgot-password"
+                className="mt-7 flex w-full items-center justify-center rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400"
+              >
+                Request a new link
+              </Link>
+
+              <Link
+                to="/login"
+                className="mt-5 flex items-center justify-center gap-2 text-sm text-slate-400 transition hover:text-white"
+              >
+                <ArrowLeft size={16} />
+                Back to login
+              </Link>
+            </div>
           ) : (
             <>
-              <h1 className="text-2xl font-bold">Reset your password</h1>
+              <h1 className="text-2xl font-bold">
+                Reset your password
+              </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-400">
                 Choose a new password for your LinkFlow account.
@@ -130,10 +180,24 @@ export default function ResetPassword() {
                   className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
                 >
                   {error}
+
+                  <p className="mt-2">
+                    If your reset link has expired,{" "}
+                    <Link
+                      to="/forgot-password"
+                      className="font-medium underline underline-offset-2 hover:text-white"
+                    >
+                      request a new one
+                    </Link>
+                    .
+                  </p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+              <form
+                onSubmit={handleSubmit}
+                className="mt-7 space-y-5"
+              >
                 <div>
                   <label
                     htmlFor="password"
@@ -153,7 +217,8 @@ export default function ResetPassword() {
                       onChange={handleChange}
                       required
                       minLength={8}
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      disabled={loading || success}
+                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
                     />
 
                     <button
@@ -164,7 +229,8 @@ export default function ResetPassword() {
                       aria-label={
                         showPassword ? "Hide password" : "Show password"
                       }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
+                      disabled={loading || success}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white disabled:opacity-60"
                     >
                       {showPassword ? (
                         <EyeOff size={18} />
@@ -198,7 +264,8 @@ export default function ResetPassword() {
                       onChange={handleChange}
                       required
                       minLength={8}
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      disabled={loading || success}
+                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
                     />
 
                     <button
@@ -211,7 +278,8 @@ export default function ResetPassword() {
                           ? "Hide password"
                           : "Show password"
                       }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
+                      disabled={loading || success}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white disabled:opacity-60"
                     >
                       {showConfirmPassword ? (
                         <EyeOff size={18} />
@@ -224,7 +292,7 @@ export default function ResetPassword() {
 
                 <button
                   type="submit"
-                  disabled={loading || !token}
+                  disabled={loading || success}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading && (
@@ -253,3 +321,4 @@ export default function ResetPassword() {
     </div>
   );
 }
+

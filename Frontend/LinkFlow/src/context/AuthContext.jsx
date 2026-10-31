@@ -1,8 +1,10 @@
+
 import {
   createContext,
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 
 import {
@@ -16,6 +18,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Restore the authenticated user when the app starts
   useEffect(() => {
     let active = true;
 
@@ -44,13 +47,14 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  async function logout() {
+  // Log out the user
+  const logout = useCallback(async () => {
     try {
       await logoutUser();
     } finally {
       setUser(null);
     }
-  }
+  }, []);
 
   const value = {
     user,
@@ -70,7 +74,7 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
 
-  if (!context) {
+  if (context === null) {
     throw new Error(
       "useAuth must be used inside AuthProvider"
     );
@@ -78,3 +82,4 @@ export function useAuth() {
 
   return context;
 }
+

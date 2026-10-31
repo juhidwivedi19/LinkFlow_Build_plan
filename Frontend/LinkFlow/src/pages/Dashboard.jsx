@@ -5,7 +5,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
-  Bell,
   Check,
   ChevronDown,
   CircleHelp,
@@ -27,16 +26,20 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import NotificationBell from "./components/NotificationBell";
-import ClickAnalyticsChart from "./components/ClickAnalyticsChart";
-import { useAuth } from "./context/AuthContext";
-import { getWorkspaces, createWorkspace } from "./api/workspace.api";
+import NotificationBell from "../components/NotificationBell";
+import ClickAnalyticsChart from "../components/ClickAnalyticsChart";
+import { useAuth } from "../context/AuthContext";
+import { getWorkspaces, createWorkspace } from "../api/workspace.api";
 import {
   getWorkspaceLinks,
   createLink as createLinkApi,
+  updateLink as updateLinkApi,
   deleteLink as deleteLinkApi,
-} from "./api/link.api";
+} from "../api/link.api";
 import "./App.css";
+import Analytics from "./Analytics";
+import QRCodePage from "./QRCodePage";
+
 
 const SHORT_BASE_URL = (
   import.meta.env.VITE_SHORT_BASE_URL ||
@@ -348,7 +351,6 @@ function Topbar({
   onLogout,
   loggingOut,
 }) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
   const name = user?.name || user?.email?.split("@")[0] || "User";
@@ -484,7 +486,7 @@ function EmptyLinks({ onCreate }) {
   );
 }
 
-function LinkRow({ link, onDelete, onCopy }) {
+function LinkRow({ link, onDelete, onCopy, onEdit }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -570,32 +572,49 @@ function LinkRow({ link, onDelete, onCopy }) {
           <MoreHorizontal size={17} />
         </button>
 
-        {menuOpen && (
-          <div className="absolute right-0 top-10 z-20 w-36 rounded-lg border border-white/10 bg-slate-900 p-1 shadow-xl">
-            <button
-              type="button"
-              disabled={deleting}
-              onClick={handleDelete}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
-            >
-              {deleting ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Trash2 size={14} />
-              )}
-              Delete link
-            </button>
-          </div>
-        )}
+      {menuOpen && (
+  <div className="absolute right-0 top-10 z-20 w-36 rounded-lg border border-white/10 bg-slate-900 p-1 shadow-xl">
+    <button
+      type="button"
+      onClick={() => {
+        onEdit(link);
+        setMenuOpen(false);
+      }}
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-slate-200 transition hover:bg-white/5"
+    >
+      Edit link
+    </button>
+
+    <button
+      type="button"
+      disabled={deleting}
+      onClick={handleDelete}
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
+    >
+      {deleting ? (
+        <Loader2 size={14} className="animate-spin" />
+      ) : (
+        <Trash2 size={14} />
+      )}
+      Delete link
+    </button>
+  </div>
+)}
       </div>
     </div>
   );
 }
 
-function CreateLinkModal({ onClose, onCreate, existingLinks }) {
-  const [url, setUrl] = useState("");
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
+function CreateLinkModal({
+  onClose,
+  onCreate,
+  onEdit,
+  existingLinks,
+  initialLink = null,
+}) {
+  const [url, setUrl] = useState(initialLink?.originalUrl || "");
+  const [title, setTitle] = useState(initialLink?.title || "");
+  const [slug, setSlug] = useState(initialLink?.slug || "");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -616,7 +635,7 @@ function CreateLinkModal({ onClose, onCreate, existingLinks }) {
       setError("Please enter a title for your link.");
       return;
     }
-
+    
     if (
       trimmedSlug &&
       !/^[A-Za-z0-9_-]{3,30}$/.test(trimmedSlug)
@@ -629,29 +648,37 @@ function CreateLinkModal({ onClose, onCreate, existingLinks }) {
 
     if (
       trimmedSlug &&
-      existingLinks.some(
-        (link) => link.slug?.toLowerCase() === trimmedSlug.toLowerCase()
-      )
+     existingLinks.some(
+  (link) =>
+    link.id !== initialLink?.id &&
+    link.slug?.toLowerCase() === trimmedSlug.toLowerCase()
+)
     ) {
       setError("That slug is already being used by one of your links.");
       return;
     }
 
-    try {
-      setSubmitting(true);
+   try {
+  setSubmitting(true);
 
-      await onCreate({
-        url: new URL(trimmedUrl).href,
-        title: trimmedTitle,
-        ...(trimmedSlug ? { slug: trimmedSlug } : {}),
-      });
+  const payload = {
+    url: new URL(trimmedUrl).href,
+    title: trimmedTitle,
+    ...(trimmedSlug ? { slug: trimmedSlug } : {}),
+  };
 
-      onClose();
-    } catch (err) {
-      setError(err.message || "Unable to create your link.");
-    } finally {
-      setSubmitting(false);
-    }
+  if (initialLink && onEdit) {
+    await onEdit(initialLink, payload);
+  } else {
+    await onCreate(payload);
+  }
+
+  onClose();
+} catch (err) {
+  setError(err.message || "Unable to save your link.");
+} finally {
+  setSubmitting(false);
+}
   }
 
   return (
@@ -666,9 +693,13 @@ function CreateLinkModal({ onClose, onCreate, existingLinks }) {
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-white">Create a short link</h2>
+            <h2 className="text-xl font-bold text-white">
+              {initialLink ? "Edit short link" : "Create a short link"}
+            </h2>
             <p className="mt-2 text-sm text-slate-400">
-              Add a destination and choose how your link appears.
+              {initialLink
+                ? "Update your destination, title, or custom slug."
+                : "Add a destination and choose how your link appears."}
             </p>
           </div>
 
@@ -777,7 +808,11 @@ function CreateLinkModal({ onClose, onCreate, existingLinks }) {
               className="flex items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}
-              {submitting ? "Creating..." : "Create link"}
+              {submitting
+                ? "Saving..."
+                : initialLink
+                  ? "Save changes"
+                  : "Create link"}
             </button>
           </div>
         </form>
@@ -811,12 +846,16 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
 
   const [activePage, setActivePage] = useState("Overview");
-  const [workspaceId, setWorkspaceId] = useState(null);
-  const [workspaceName, setWorkspaceName] = useState("My Workspace");
+const [workspaces, setWorkspaces] = useState([]);
+const [workspaceId, setWorkspaceId] = useState(null);
+const [workspaceName, setWorkspaceName] = useState("My Workspace");
+const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
   const [links, setLinks] = useState([]);
+  const [selectedAnalyticsLinkId, setSelectedAnalyticsLinkId] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -833,8 +872,8 @@ export default function Dashboard() {
     setLoadError("");
 
     try {
-      const workspaceResponse = await getWorkspaces();
-      let workspaces = extractWorkspaces(workspaceResponse);
+const workspaceResponse = await getWorkspaces();
+let availableWorkspaces = extractWorkspaces(workspaceResponse);
 
       if (!workspaces.length) {
         const createResponse = await createWorkspace({
@@ -882,6 +921,23 @@ export default function Dashboard() {
     loadDashboard();
   }, [loadDashboard]);
 
+  // The analytics endpoint is link-specific, so keep the chart selection
+  // synchronized with the links currently available in this workspace.
+  useEffect(() => {
+    if (links.length === 0) {
+      setSelectedAnalyticsLinkId("");
+      return;
+    }
+
+    const selectedLinkStillExists = links.some(
+      (link) => String(link.id) === String(selectedAnalyticsLinkId)
+    );
+
+    if (!selectedLinkStillExists) {
+      setSelectedAnalyticsLinkId(String(links[0].id));
+    }
+  }, [links, selectedAnalyticsLinkId]);
+
   useEffect(() => {
     function handleNavigateLinks() {
       setActivePage("Links");
@@ -896,6 +952,7 @@ export default function Dashboard() {
       if (event.key === "Escape") {
         setSearchOpen(false);
         setCreateModalOpen(false);
+        setEditingLink(null);
         setMobileOpen(false);
       }
     }
@@ -955,6 +1012,27 @@ export default function Dashboard() {
 
     notify("Short link created successfully.");
   }
+
+  async function handleEditLink(link, payload) {
+  const response = await updateLinkApi(workspaceId, link.id, payload);
+  const updatedLink =
+    response?.link || response?.data?.link || response?.data || response;
+
+  if (!updatedLink || typeof updatedLink !== "object") {
+    throw new Error("The server did not return the updated link.");
+  }
+
+  setLinks((previous) =>
+    previous.map((item) =>
+      item.id === link.id
+        ? normalizeLink({ ...item, ...updatedLink, id: link.id })
+        : item
+    )
+  );
+
+  setEditingLink(null);
+  notify("Link updated successfully.");
+}
 
   async function handleDeleteLink(link) {
     try {
@@ -1135,7 +1213,7 @@ export default function Dashboard() {
                     <MetricCard
                       label="Average CTR"
                       value="—"
-                      description="Analytics integration pending"
+                      description="Impression data is not available"
                       icon={BarChart3}
                     />
                     <MetricCard
@@ -1150,28 +1228,58 @@ export default function Dashboard() {
 
                   <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
                     <section className="min-w-0 rounded-xl border border-white/10 bg-slate-900/70 p-5 sm:p-6">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <h2 className="text-base font-semibold text-white">
                             Click analytics
                           </h2>
                           <p className="mt-1 text-xs text-slate-500">
-                            Click trends over time
+                            Click trends for a selected short link
                           </p>
                         </div>
 
-                        <span className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400">
-                          Last 7 days
-                        </span>
+                        {links.length > 0 && (
+                          <label className="block w-full sm:max-w-xs">
+                            <span className="sr-only">Choose a link for analytics</span>
+                            <select
+                              value={selectedAnalyticsLinkId}
+                              onChange={(event) =>
+                                setSelectedAnalyticsLinkId(event.target.value)
+                              }
+                              className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            >
+                              {links.map((link) => (
+                                <option key={link.id} value={String(link.id)}>
+                                  {link.title}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
 
                       <div className="mt-6 min-h-56">
-                        <ClickAnalyticsChart />
+                        {selectedAnalyticsLinkId ? (
+                          <ClickAnalyticsChart linkId={selectedAnalyticsLinkId} />
+                        ) : (
+                          <div className="flex min-h-56 flex-col items-center justify-center text-center">
+                            <BarChart3 size={28} className="text-slate-600" />
+                            <p className="mt-3 text-sm font-medium text-slate-300">
+                              No analytics available yet
+                            </p>
+                            <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+                              Create a short link to view its click analytics here.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setCreateModalOpen(true)}
+                              className="mt-4 rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-400"
+                            >
+                              Create link
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      <p className="mt-3 text-xs text-slate-500">
-                        Historical chart data is not yet connected to the analytics API.
-                      </p>
                     </section>
 
                     <section className="rounded-xl border border-white/10 bg-slate-900/70 p-5 sm:p-6">
@@ -1246,6 +1354,7 @@ export default function Dashboard() {
                           link={link}
                           onDelete={handleDeleteLink}
                           onCopy={handleCopy}
+                          onEdit={setEditingLink}
                         />
                       ))
                     )}
@@ -1339,6 +1448,7 @@ export default function Dashboard() {
                       link={link}
                       onDelete={handleDeleteLink}
                       onCopy={handleCopy}
+                       onEdit={setEditingLink}
                     />
                   ))
                 )}
@@ -1346,24 +1456,38 @@ export default function Dashboard() {
             </>
           )}
 
-          {pageDescriptions[activePage] && (
-            <ComingSoonPage
-              title={activePage}
-              description={pageDescriptions[activePage].description}
-              icon={pageDescriptions[activePage].icon}
-            />
-          )}
-        </main>
+      {activePage === "Analytics" && !loading && !loadError && (
+  <Analytics links={links} />
+)}
+
+{activePage === "QR Codes" && !loading && !loadError && (
+  <QRCodePage links={links} />
+)}
+
+{!["Analytics", "QR Codes"].includes(activePage) &&
+  pageDescriptions[activePage] && (
+    <ComingSoonPage
+      title={activePage}
+      description={pageDescriptions[activePage].description}
+      icon={pageDescriptions[activePage].icon}
+    />
+  )}
+        </main> 
 
         <footer className="border-t border-white/10 px-4 py-4 text-center text-xs text-slate-600 sm:px-6 lg:px-8">
           LinkFlow · Link analytics platform
         </footer>
       </div>
 
-      {createModalOpen && (
+      {(createModalOpen || editingLink) && (
         <CreateLinkModal
-          onClose={() => setCreateModalOpen(false)}
+          initialLink={editingLink}
+          onClose={() => {
+            setCreateModalOpen(false);
+            setEditingLink(null);
+          }}
           onCreate={handleCreateLink}
+          onEdit={handleEditLink}
           existingLinks={links}
         />
       )}

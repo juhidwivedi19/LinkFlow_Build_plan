@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Navigate,
@@ -6,32 +7,46 @@ import {
 } from "react-router-dom";
 
 import Dashboard from "./Dashboard";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
+import CheckEmail from "./pages/CheckEmail";
 
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public authentication routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/check-email" element={<CheckEmail />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
+        {/* Protected application routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
         </Route>
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
-        
+        {/* Default route */}
+        <Route
+          path="/"
+          element={<Navigate to="/dashboard" replace />}
+        />
+
+        {/* Unknown routes */}
+        <Route
+          path="*"
+          element={<Navigate to="/dashboard" replace />}
+        />
       </Routes>
     </BrowserRouter>
   );
 }
+

@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Link2, Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
+import {
+  Link2,
+  Mail,
+  ArrowLeft,
+  Loader2,
+  CheckCircle,
+} from "lucide-react";
 import { apiRequest } from "../api/client";
 
 export default function ForgotPassword() {
@@ -11,11 +17,14 @@ export default function ForgotPassword() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    if (loading) return;
+
     setError("");
 
-    const trimmedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!trimmedEmail) {
+    if (!normalizedEmail) {
       setError("Please enter your email address.");
       return;
     }
@@ -25,12 +34,18 @@ export default function ForgotPassword() {
 
       await apiRequest("/api/auth/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: trimmedEmail }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+        }),
       });
 
+      setEmail(normalizedEmail);
       setSuccess(true);
     } catch (err) {
-      setError(err.message || "Unable to process your request. Please try again.");
+      setError(
+        err.message ||
+          "Unable to process your request. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -39,12 +54,17 @@ export default function ForgotPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-3">
+        <Link
+          to="/"
+          className="mb-8 flex items-center justify-center gap-3"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500">
             <Link2 size={24} />
           </div>
 
-          <span className="text-2xl font-bold tracking-tight">LinkFlow</span>
+          <span className="text-2xl font-bold tracking-tight">
+            LinkFlow
+          </span>
         </Link>
 
         <div className="rounded-2xl border border-white/10 bg-slate-900 p-8 shadow-2xl">
@@ -60,8 +80,14 @@ export default function ForgotPassword() {
 
               <p className="mt-3 text-sm leading-6 text-slate-400">
                 If an account exists for{" "}
-                <span className="font-medium text-slate-200">{email}</span>,
-                you should receive instructions to reset your password.
+                <span className="break-all font-medium text-slate-200">
+                  {email}
+                </span>
+                , you should receive instructions to reset your password.
+              </p>
+
+              <p className="mt-3 text-sm text-slate-500">
+                Check your inbox and spam folder.
               </p>
 
               <Link
@@ -73,10 +99,12 @@ export default function ForgotPassword() {
             </div>
           ) : (
             <>
-              <h1 className="text-2xl font-bold">Forgot your password?</h1>
+              <h1 className="text-2xl font-bold">
+                Forgot your password?
+              </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Enter your registered email address and we'll send you
+                Enter your registered email address and we’ll send you
                 instructions to reset your password.
               </p>
 
@@ -89,7 +117,10 @@ export default function ForgotPassword() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+              <form
+                onSubmit={handleSubmit}
+                className="mt-7 space-y-5"
+              >
                 <div>
                   <label
                     htmlFor="email"
@@ -111,9 +142,13 @@ export default function ForgotPassword() {
                       autoComplete="email"
                       placeholder="you@example.com"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      onChange={(event) => {
+                        setEmail(event.target.value);
+                        setError("");
+                      }}
                       required
-                      className="w-full rounded-lg border border-white/10 bg-slate-950 py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                      disabled={loading}
+                      className="w-full rounded-lg border border-white/10 bg-slate-950 py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -124,10 +159,15 @@ export default function ForgotPassword() {
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading && (
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2
+                      size={18}
+                      className="animate-spin"
+                    />
                   )}
 
-                  {loading ? "Sending..." : "Send reset instructions"}
+                  {loading
+                    ? "Sending instructions..."
+                    : "Send reset instructions"}
                 </button>
               </form>
 

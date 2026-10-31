@@ -1,21 +1,24 @@
+
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Link2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link2, Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
 import { loginUser } from "../api/auth.api";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser } = useAuth();
 
   const [formData, setFormData] = useState({
-    email: "",
+    email: searchParams.get("email") || "",
     password: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -24,47 +27,63 @@ export default function Login() {
       ...previous,
       [name]: value,
     }));
+
+    setError("");
+    setSuccess("");
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError("");
 
-    if (!formData.email.trim() || !formData.password) {
+    if (loading) return;
+
+    setError("");
+    setSuccess("");
+
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
+    if (!email || !password) {
       setError("Please enter your email and password.");
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const response = await loginUser({
-        email: formData.email.trim(),
-        password: formData.password,
-      });
+    try {
+      const response = await loginUser({ email, password });
 
       if (!response?.user) {
-        throw new Error("Login succeeded, but user information was not returned.");
+        throw new Error(
+          "Login succeeded, but user information was not returned."
+        );
       }
 
       setUser(response.user);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.message || "Unable to log in. Please try again.");
+      setError(
+        err.message || "Unable to log in. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
-      <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-3">
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
+      <section className="w-full max-w-md">
+        <Link
+          to="/"
+          className="mb-8 flex items-center justify-center gap-3"
+        >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500">
             <Link2 size={24} />
           </div>
 
-          <span className="text-2xl font-bold tracking-tight">LinkFlow</span>
+          <span className="text-2xl font-bold tracking-tight">
+            LinkFlow
+          </span>
         </Link>
 
         <div className="rounded-2xl border border-white/10 bg-slate-900 p-8 shadow-2xl">
@@ -74,9 +93,19 @@ export default function Login() {
             Log in to manage your links and analytics.
           </p>
 
+          {success && (
+            <div
+              role="status"
+              className="mt-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300"
+            >
+              {success}
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
+              aria-live="polite"
               className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
             >
               {error}
@@ -101,7 +130,8 @@ export default function Login() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                disabled={loading}
+                className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
               />
             </div>
 
@@ -132,16 +162,27 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  disabled={loading}
+                  className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 pr-12 text-sm outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((previous) => !previous)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
+                  onClick={() =>
+                    setShowPassword((previous) => !previous)
+                  }
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
+                  aria-pressed={showPassword}
+                  disabled={loading}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                 </button>
               </div>
             </div>
@@ -151,7 +192,10 @@ export default function Login() {
               disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading && <Loader2 size={18} className="animate-spin" />}
+              {loading && (
+                <Loader2 size={18} className="animate-spin" />
+              )}
+
               {loading ? "Logging in..." : "Log in"}
             </button>
           </form>
@@ -165,12 +209,22 @@ export default function Login() {
               Create an account
             </Link>
           </p>
+
+          <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-slate-500">
+            <MailCheck size={16} className="mt-0.5 shrink-0" />
+
+            <p>
+              Make sure you have verified your email address before
+              signing in.
+            </p>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">
           Secure link management, all in one place.
         </p>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
+

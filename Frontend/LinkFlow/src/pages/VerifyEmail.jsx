@@ -1,6 +1,12 @@
+
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Link2, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import {
+  Link2,
+  CheckCircle,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 import { apiRequest } from "../api/client";
 
 export default function VerifyEmail() {
@@ -8,7 +14,9 @@ export default function VerifyEmail() {
   const token = searchParams.get("token") || "";
 
   const [status, setStatus] = useState("loading");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(
+    "Please wait while we verify your email."
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -16,26 +24,36 @@ export default function VerifyEmail() {
     async function verifyEmail() {
       if (!token) {
         setStatus("error");
-        setMessage("The verification link is missing its token.");
+        setMessage(
+          "The verification token is missing. Please open the verification link from your email."
+        );
         return;
       }
 
       try {
-        // Your backend route is POST /api/auth/emailverification.
-        await apiRequest("/api/auth/emailverification", {
-          method: "POST",
-          body: JSON.stringify({ token }),
-        });
+        const response = await apiRequest(
+          "/api/auth/emailverification",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              verificationToken: token,
+            }),
+          }
+        );
 
         if (!cancelled) {
           setStatus("success");
-          setMessage("Your email has been verified successfully.");
+          setMessage(
+            response?.message ||
+              "Your email has been verified successfully. You can now sign in."
+          );
         }
-      } catch (err) {
+      } catch (error) {
         if (!cancelled) {
           setStatus("error");
           setMessage(
-            err.message || "This verification link is invalid or has expired."
+            error.message ||
+              "Email verification failed. The link may be invalid or expired."
           );
         }
       }
@@ -49,67 +67,69 @@ export default function VerifyEmail() {
   }, [token]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
-      <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500">
-            <Link2 size={24} />
-          </div>
-          <span className="text-2xl font-bold tracking-tight">LinkFlow</span>
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-8 text-white">
+      <section className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center shadow-xl">
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center gap-3 text-2xl font-bold tracking-tight"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600">
+            <Link2 size={26} />
+          </span>
+
+          <span>
+            Link<span className="text-blue-500">Flow</span>
+          </span>
         </Link>
 
-        <div className="rounded-2xl border border-white/10 bg-slate-900 p-8 text-center shadow-2xl">
+        <div className="mt-8">
           {status === "loading" && (
-            <>
-              <Loader2
-                size={42}
-                className="mx-auto animate-spin text-indigo-400"
-              />
-              <h1 className="mt-5 text-2xl font-bold">Verifying your email</h1>
-              <p className="mt-2 text-sm text-slate-400">
-                Please wait while we verify your email address.
-              </p>
-            </>
+            <Loader2
+              size={48}
+              className="mx-auto animate-spin text-blue-400"
+            />
           )}
 
           {status === "success" && (
-            <>
-              <CheckCircle
-                size={42}
-                className="mx-auto text-emerald-400"
-              />
-              <h1 className="mt-5 text-2xl font-bold">Email verified!</h1>
-              <p className="mt-2 text-sm text-slate-400">{message}</p>
-
-              <Link
-                to="/login"
-                className="mt-7 flex w-full justify-center rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400"
-              >
-                Continue to login
-              </Link>
-            </>
+            <CheckCircle
+              size={48}
+              className="mx-auto text-green-400"
+            />
           )}
 
           {status === "error" && (
-            <>
-              <XCircle size={42} className="mx-auto text-red-400" />
-              <h1 className="mt-5 text-2xl font-bold">
-                Verification unsuccessful
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                {message}
-              </p>
-
-              <Link
-                to="/login"
-                className="mt-7 flex w-full justify-center rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold transition hover:bg-indigo-400"
-              >
-                Back to login
-              </Link>
-            </>
+            <XCircle
+              size={48}
+              className="mx-auto text-red-400"
+            />
           )}
         </div>
-      </div>
-    </div>
+
+        <h1 className="mt-6 text-2xl font-bold">
+          {status === "loading" && "Verifying your email"}
+          {status === "success" && "Email verified successfully"}
+          {status === "error" && "Verification unsuccessful"}
+        </h1>
+
+        <p
+          role={status === "error" ? "alert" : "status"}
+          className="mt-3 break-words text-sm leading-6 text-slate-400"
+        >
+          {message}
+        </p>
+
+        {status !== "loading" && (
+          <Link
+            to="/login"
+            className="mt-6 inline-block w-full rounded-lg bg-indigo-600 px-4 py-3 font-semibold transition hover:bg-indigo-500"
+          >
+            {status === "success"
+              ? "Continue to login"
+              : "Back to login"}
+          </Link>
+        )}
+      </section>
+    </main>
   );
 }
+
