@@ -84,8 +84,8 @@ async function generateReport({
         throw new Error("A valid workspace ID is required");
     }
 
-    const { start, end } = getReportPeriod(reportType, referenceDate);
-    const dateFilter = buildDateFilter(start, end);
+   const { start, end } = await getReportPeriod(reportType, referenceDate);
+const dateFilter = await buildDateFilter(start, end);
 
     const [
         totalClicks,
@@ -236,7 +236,7 @@ async function saveReportMetadata(report, storageKey = null) {
  * This function does not create a second database record.
  */
 async function exportReportCsv(report) {
-    const csv = generateReportCsv(report);
+    const csv = await generateReportCsv(report);
     const buffer = Buffer.from(csv, "utf8");
     const suffix = crypto.randomUUID();
 

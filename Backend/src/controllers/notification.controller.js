@@ -12,7 +12,7 @@ async function GetNotificationsController(req, res) {
 
         const skip = (page - 1) * limit;
 
-        const [notifications, total, unreadCount] = await Promise.all([
+               const [notifications, total, unreadCount] = await Promise.all([
             prisma.notification.findMany({
                 where: { userId },
                 orderBy: { createdAt: "desc" },

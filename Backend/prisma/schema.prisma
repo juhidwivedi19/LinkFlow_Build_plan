@@ -20,7 +20,7 @@ model user {
   created_at               DateTime  @default(now())
   updated_at               DateTime  @updatedAt
   emailVerificationExpires DateTime?
-  emailVerificationToken   String?
+  emailVerificationToken   String? @unique
   emailVerified            Boolean   @default(false)
   resetPasswordExpires     DateTime?
   resetPasswordToken       String?
@@ -253,3 +253,6 @@ model Report {
 
   @@index([workspaceId, createdAt])
 }
+
+
+

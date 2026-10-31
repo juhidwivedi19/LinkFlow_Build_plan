@@ -11,13 +11,12 @@ async function UserRegisterController(req, res) {
     try {
         const { email, password, name } = req.body;
 
-        const isExists = await prisma.user.findUnique({
-            where: {
-                email: email
-            }
+        // Check whether the user already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
         });
 
-        if (isExists) {
+        if (existingUser) {
             return res.status(400).json({
                 message: "User already exists",
                 status: "failed"
@@ -27,86 +26,60 @@ async function UserRegisterController(req, res) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
+        // Generate email verification token
+        const crypto = require("crypto");
+        const verificationToken = crypto.randomBytes(32).toString("hex");
+
+        // Set token expiry to 15 minutes
+        const verificationExpires = new Date(
+            Date.now() + 15 * 60 * 1000
+        );
+
+        // Create an unverified user
         const user = await prisma.user.create({
             data: {
-                email: email,
+                email,
                 password: hashedPassword,
-                name: name
+                name,
+                emailVerified: false,
+                emailVerificationToken: verificationToken,
+                emailVerificationExpires: verificationExpires
             }
         });
 
-        // Generate Access Token
-        const token = jwt.sign(
-            {
-                userId: user.id
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "15m"
-            }
-        );
+        // Build verification link
+        const verificationUrl =
+            `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-        // Generate Refresh Token
-        const refreshToken = jwt.sign(
-            {
-                userId: user.id
-            },
-            process.env.JWT_REFRESH_SECRET,
-            {
-                expiresIn: "7d"
-            }
-        );
-
-        // Save refresh token in DB
-        await prisma.refreshToken.create({
-            data: {
-                token: refreshToken,
-                userId: user.id,
-                expiresAt: new Date(
-                    Date.now() + 7 * 24 * 60 * 60 * 1000
-                )
-            }
-        });
-
-        // Store access token in cookie
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 15 * 60 * 1000
-        });
-
-        // Store refresh token in cookie
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        // Send registration email
-        await emailService.sendRegistrationEmail(
+        // Send verification email
+        await emailService.sendVerificationEmail(
             user.email,
-            user.name
+            user.name,
+            verificationUrl
         );
 
+        // Do not issue login cookies until the email is verified
         return res.status(201).json({
-            message: "User registered successfully",
+            message: "Registration successful. Please check your email to verify your account.",
             user: {
                 id: user.id,
                 email: user.email,
-                name: user.name
+                name: user.name,
+                emailVerified: user.emailVerified
             }
         });
 
     } catch (error) {
+        console.error("Registration error:", error);
+
         return res.status(500).json({
-            message: error.message,
+            message: "Registration failed. Please try again.",
             status: "failed"
         });
     }
 }
+
+
 
 
 //User Login Controller
