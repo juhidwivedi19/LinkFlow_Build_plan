@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
 import { createLink } from "../api/link.api";
 import { getCustomDomains } from "../api/domain.api";
 
@@ -18,17 +19,21 @@ export default function CreateLink() {
   // Custom domain states
   const [domains, setDomains] = useState([]);
   const [customDomainId, setCustomDomainId] = useState("");
-  const [loadingDomains, setLoadingDomains] = useState(false);
+  const [loadingDomains, setLoadingDomains] = useState(true);
+  const [domainError, setDomainError] = useState("");
 
   // UI states
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch verified custom domains
+  // Load verified custom domains
   useEffect(() => {
+    let isMounted = true;
+
     async function loadDomains() {
       try {
         setLoadingDomains(true);
+        setDomainError("");
 
         const response = await getCustomDomains(workspaceId);
 
@@ -36,20 +41,47 @@ export default function CreateLink() {
           (domain) => domain.verified === true
         );
 
-        setDomains(verifiedDomains);
+        if (isMounted) {
+          setDomains(verifiedDomains);
+        }
       } catch (error) {
-        console.error("Failed to load custom domains:", error);
+        if (isMounted) {
+          setDomainError(
+            error.message || "Failed to load custom domains."
+          );
+        }
       } finally {
-        setLoadingDomains(false);
+        if (isMounted) {
+          setLoadingDomains(false);
+        }
       }
     }
 
     if (workspaceId) {
       loadDomains();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [workspaceId]);
 
-  // Handle link creation
+  // Selected domain preview
+  const selectedDomain = domains.find(
+    (domain) => String(domain.id) === customDomainId
+  );
+
+  const previewUrl = slug.trim()
+    ? selectedDomain
+      ? `https://${selectedDomain.domain}/${slug.trim()}`
+      : `${(
+          import.meta.env.VITE_SHORT_URL_BASE ||
+          import.meta.env.VITE_API_BASE_URL ||
+          "http://localhost:4000"
+        ).replace(/\/+$/, "")}/${slug.trim()}`
+    : "Your generated slug will appear here";
+
+  // Create link
   async function handleSubmit(e) {
     e.preventDefault();
 
@@ -58,31 +90,37 @@ export default function CreateLink() {
       setError("");
 
       const payload = {
-        url,
-        title,
+        url: url.trim(),
+        title: title.trim(),
         customDomainId: customDomainId
           ? Number(customDomainId)
           : null,
       };
 
-      // Optional custom slug
       if (slug.trim()) {
         payload.slug = slug.trim();
       }
 
-      // Optional description
       if (description.trim()) {
         payload.description = description.trim();
       }
 
-      // Optional expiration date
       if (expiresAt) {
-        payload.expiresAt = new Date(expiresAt).toISOString();
+        const expirationDate = new Date(expiresAt);
+
+        if (Number.isNaN(expirationDate.getTime())) {
+          throw new Error("Please provide a valid expiration date.");
+        }
+
+        if (expirationDate <= new Date()) {
+          throw new Error("Expiration date must be in the future.");
+        }
+
+        payload.expiresAt = expirationDate.toISOString();
       }
 
-      // Optional password protection
       if (password.trim()) {
-        payload.password = password;
+        payload.password = password.trim();
       }
 
       await createLink(workspaceId, payload);
@@ -99,16 +137,18 @@ export default function CreateLink() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto max-w-2xl">
 
-        {/* Back Button */}
+        {/* Back button */}
         <button
           type="button"
-          onClick={() => navigate(`/workspaces/${workspaceId}/links`)}
+          onClick={() =>
+            navigate(`/workspaces/${workspaceId}/links`)
+          }
           className="mb-6 text-sm font-medium text-gray-600 hover:text-gray-900"
         >
           ← Back to Links
         </button>
 
-        {/* Page Heading */}
+        {/* Heading */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">
             Create New Link
@@ -119,19 +159,17 @@ export default function CreateLink() {
           </p>
         </div>
 
-        {/* Error Message */}
+        {/* Errors */}
         {error && (
           <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
-        {/* Create Link Form */}
         <form
           onSubmit={handleSubmit}
           className="space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
         >
-
           {/* Destination URL */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -158,7 +196,7 @@ export default function CreateLink() {
               value={customDomainId}
               onChange={(e) => setCustomDomainId(e.target.value)}
               disabled={loadingDomains}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100"
             >
               <option value="">
                 Use default LinkFlow domain
@@ -173,25 +211,31 @@ export default function CreateLink() {
 
             {loadingDomains && (
               <p className="mt-2 text-xs text-gray-500">
-                Loading custom domains...
+                Loading verified domains...
               </p>
             )}
 
-            {!loadingDomains && domains.length === 0 && (
+            {domainError && (
+              <p className="mt-2 text-xs text-red-600">
+                {domainError}
+              </p>
+            )}
+
+            {!loadingDomains && !domainError && domains.length === 0 && (
               <p className="mt-2 text-xs text-gray-500">
                 No verified custom domains available.
-                You can add and verify a domain from Custom Domains.
+                Add and verify a domain from Custom Domains.
               </p>
             )}
 
-            {domains.length > 0 && !loadingDomains && (
+            {domains.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">
-                Select a verified domain to use it for your short link.
+                Only verified custom domains are available here.
               </p>
             )}
           </div>
 
-          {/* Custom Slug */}
+          {/* Custom slug */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Custom Slug
@@ -206,8 +250,25 @@ export default function CreateLink() {
             />
 
             <p className="mt-1 text-xs text-gray-500">
-              Leave empty if you want the backend to generate a slug.
+              Leave empty to let LinkFlow generate a slug.
             </p>
+          </div>
+
+          {/* Preview */}
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <p className="mb-1 text-xs font-semibold uppercase text-gray-500">
+              Short URL Preview
+            </p>
+
+            <p className="break-all text-sm font-medium text-blue-700">
+              {previewUrl}
+            </p>
+
+            {!slug.trim() && (
+              <p className="mt-1 text-xs text-gray-500">
+                The final URL will be available after creation.
+              </p>
+            )}
           </div>
 
           {/* Title */}
@@ -241,7 +302,7 @@ export default function CreateLink() {
             />
           </div>
 
-          {/* Expiration Date */}
+          {/* Expiration */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Expiration Date
@@ -251,11 +312,12 @@ export default function CreateLink() {
               type="datetime-local"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
-          {/* Password Protection */}
+          {/* Password protection */}
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Password Protection
@@ -274,17 +336,16 @@ export default function CreateLink() {
             </p>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <div className="flex justify-end border-t border-gray-100 pt-5">
             <button
               type="submit"
-              disabled={creating}
+              disabled={creating || loadingDomains}
               className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {creating ? "Creating..." : "Create Link"}
             </button>
           </div>
-
         </form>
       </div>
     </div>
