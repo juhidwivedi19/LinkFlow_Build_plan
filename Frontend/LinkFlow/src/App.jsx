@@ -20,6 +20,7 @@ import WorkspaceSettings from "./pages/WorkspaceSettings";
 import WorkspaceLinks from "./pages/WorkspaceLinks";
 import CreateLink from "./pages/CreateLink";
 import EditLink from "./pages/EditLink";
+import CustomDomains from "./pages/CustomDomains";
 
 export default function App() {
   return (
@@ -55,6 +56,11 @@ export default function App() {
 <Route
   path="/workspaces/:workspaceId/links/:linkId"
   element={<EditLink />}
+/>
+
+<Route
+  path="/workspaces/:workspaceId/domains"
+  element={<CustomDomains />}
 />
 
 </Route>

@@ -190,6 +190,7 @@ function Toast({ toast, onClose }) {
 function Sidebar({
   activePage,
   setActivePage,
+   onNavigate,
   workspaceName,
   workspaces,
   workspaceId,
@@ -214,10 +215,15 @@ function Sidebar({
           <button
             key={item.label}
             type="button"
-            onClick={() => {
-              setActivePage(item.label);
-              onCloseMobile();
-            }}
+           onClick={() => {
+  if (item.label === "Team members" || item.label === "Settings") {
+    onNavigate(item.label);
+  } else {
+    setActivePage(item.label);
+  }
+
+  onCloseMobile();
+}}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
               active
                 ? "bg-indigo-500/15 font-medium text-indigo-300"
@@ -1137,6 +1143,22 @@ let availableWorkspaces = extractWorkspaces(workspaceResponse);
       notify("Unable to copy the link. Check browser clipboard permissions.", "error");
     }
   }
+
+  function handleSidebarNavigation(page) {
+  if (!workspaceId) {
+    notify("Please wait until your workspace loads.", "error");
+    return;
+  }
+
+  if (page === "Team members") {
+    navigate(`/workspaces/${workspaceId}/settings#members`);
+    return;
+  }
+
+  if (page === "Settings") {
+    navigate(`/workspaces/${workspaceId}/settings`);
+  }
+}
 
   async function handleLogout() {
     if (loggingOut) return;

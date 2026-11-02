@@ -64,6 +64,16 @@ export default function WorkspaceSettings() {
     fetchWorkspaceData();
   }, [workspaceId]);
 
+  // Scroll to Members section when navigated from Team Members
+useEffect(() => {
+  if (!loading && window.location.hash === "#members") {
+    document.getElementById("members")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+}, [loading]);
+
   // Update workspace
   async function handleWorkspaceSubmit(e) {
     e.preventDefault();
@@ -278,8 +288,8 @@ export default function WorkspaceSettings() {
       </section>
 
       {/* Members Section */}
-      <section>
-        <h2>Members</h2>
+        <section id="members">
+  <h2>Members</h2>
 
         {/* Add member form */}
         {canManageMembers && (
