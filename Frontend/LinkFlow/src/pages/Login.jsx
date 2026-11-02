@@ -18,7 +18,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -29,7 +28,6 @@ export default function Login() {
     }));
 
     setError("");
-    setSuccess("");
   }
 
   async function handleSubmit(event) {
@@ -38,7 +36,6 @@ export default function Login() {
     if (loading) return;
 
     setError("");
-    setSuccess("");
 
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
@@ -92,15 +89,6 @@ export default function Login() {
           <p className="mt-2 text-sm text-slate-400">
             Log in to manage your links and analytics.
           </p>
-
-          {success && (
-            <div
-              role="status"
-              className="mt-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300"
-            >
-              {success}
-            </div>
-          )}
 
           {error && (
             <div

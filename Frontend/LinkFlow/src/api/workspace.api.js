@@ -27,3 +27,39 @@ export async function deleteWorkspace(workspaceId) {
     method: "DELETE",
   });
 }
+
+export async function getWorkspaceMembers(workspaceId) {
+  return apiRequest(`/api/workspaces/${workspaceId}/members`);
+}
+
+export async function addWorkspaceMember(workspaceId, payload) {
+  return apiRequest(`/api/workspaces/${workspaceId}/members`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMemberRole(workspaceId, userId, payload) {
+  return apiRequest(
+    `/api/workspaces/${workspaceId}/members/${userId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function removeWorkspaceMember(workspaceId, userId) {
+  return apiRequest(
+    `/api/workspaces/${workspaceId}/members/${userId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export async function leaveWorkspace(workspaceId) {
+  return apiRequest(`/api/workspaces/${workspaceId}/leave`, {
+    method: "POST",
+  });
+}

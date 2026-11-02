@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -7,7 +6,8 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
-import { apiRequest } from "../api/client";
+
+import { verifyEmail } from "../api/auth.api";
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -21,7 +21,9 @@ export default function VerifyEmail() {
   useEffect(() => {
     let cancelled = false;
 
-    async function verifyEmail() {
+    // This function handles the verification process
+    async function handleEmailVerification() {
+      // Check whether the token exists in the URL
       if (!token) {
         setStatus("error");
         setMessage(
@@ -31,15 +33,8 @@ export default function VerifyEmail() {
       }
 
       try {
-        const response = await apiRequest(
-          "/api/auth/emailverification",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              verificationToken: token,
-            }),
-          }
-        );
+        // Call verifyEmail function from auth.api.js
+        const response = await verifyEmail(token);
 
         if (!cancelled) {
           setStatus("success");
@@ -59,7 +54,8 @@ export default function VerifyEmail() {
       }
     }
 
-    verifyEmail();
+    // Run the local verification handler
+    handleEmailVerification();
 
     return () => {
       cancelled = true;
@@ -132,4 +128,3 @@ export default function VerifyEmail() {
     </main>
   );
 }
-

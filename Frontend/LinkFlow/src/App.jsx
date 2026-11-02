@@ -16,6 +16,10 @@ import VerifyEmail from "./pages/VerifyEmail";
 import CheckEmail from "./pages/CheckEmail";
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import WorkspaceSettings from "./pages/WorkspaceSettings";
+import WorkspaceLinks from "./pages/WorkspaceLinks";
+import CreateLink from "./pages/CreateLink";
+import EditLink from "./pages/EditLink";
 
 export default function App() {
   return (
@@ -32,7 +36,28 @@ export default function App() {
         {/* Protected application routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
-        </Route>
+        
+        <Route
+  path="/workspaces/:workspaceId/settings"
+  element={<WorkspaceSettings />}
+/>
+
+<Route
+  path="/workspaces/:workspaceId/links"
+  element={<WorkspaceLinks />}
+/>
+
+<Route
+  path="/workspaces/:workspaceId/links/create"
+  element={<CreateLink />}
+/>
+
+<Route
+  path="/workspaces/:workspaceId/links/:linkId"
+  element={<EditLink />}
+/>
+
+</Route>
 
         {/* Default route */}
         <Route
@@ -45,6 +70,8 @@ export default function App() {
           path="*"
           element={<Navigate to="/dashboard" replace />}
         />
+
+        
       </Routes>
     </BrowserRouter>
   );

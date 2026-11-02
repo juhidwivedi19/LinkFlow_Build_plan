@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Mail, CheckCircle2, LoaderCircle, ArrowLeft } from "lucide-react";
-import { verifyEmail } from "../api/auth.api";
+import { resendVerificationEmail } from "../api/auth.api";
 
 export default function CheckEmail() {
   const [searchParams] = useSearchParams();
@@ -20,15 +20,8 @@ export default function CheckEmail() {
     setError("");
 
     try {
-      // The backend supports resending verification when given an email.
-      // The existing API helper sends the verificationToken field, so
-      // send the email directly through apiRequest for the resend flow.
-      const { apiRequest } = await import("../api/client");
-
-      await apiRequest("/api/auth/emailverification", {
-        method: "POST",
-        body: JSON.stringify({ email }),
-      });
+     
+    await resendVerificationEmail(email);
 
       setMessage("If your account requires verification, a new email has been requested.");
     } catch (err) {

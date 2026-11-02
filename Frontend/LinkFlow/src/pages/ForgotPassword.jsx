@@ -7,7 +7,7 @@ import {
   Loader2,
   CheckCircle,
 } from "lucide-react";
-import { apiRequest } from "../api/client";
+import { forgotPassword } from "../api/auth.api";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -32,12 +32,7 @@ export default function ForgotPassword() {
     try {
       setLoading(true);
 
-      await apiRequest("/api/auth/forgot-password", {
-        method: "POST",
-        body: JSON.stringify({
-          email: normalizedEmail,
-        }),
-      });
+     await forgotPassword(normalizedEmail);
 
       setEmail(normalizedEmail);
       setSuccess(true);

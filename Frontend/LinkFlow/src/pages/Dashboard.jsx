@@ -191,12 +191,17 @@ function Sidebar({
   activePage,
   setActivePage,
   workspaceName,
+  workspaces,
+  workspaceId,
+  onWorkspaceChange,
+  switchingWorkspace,
   user,
   onLogout,
   loggingOut,
   mobileOpen,
   onCloseMobile,
 }) {
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const name = user?.name || user?.email?.split("@")[0] || "User";
 
   function renderNavigation(section) {
@@ -262,9 +267,10 @@ function Sidebar({
           </button>
         </div>
 
-        <div className="border-b border-white/10 p-4">
+        <div className="relative border-b border-white/10 p-4">
           <button
             type="button"
+            onClick={() => setWorkspaceOpen((previous) => !previous)}
             className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:bg-white/[0.06]"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/15 text-sm font-semibold text-indigo-300">
@@ -278,8 +284,47 @@ function Sidebar({
               <p className="text-xs text-slate-500">Workspace</p>
             </div>
 
-            <ChevronDown size={16} className="text-slate-500" />
+            <ChevronDown
+              size={16}
+              className={`text-slate-500 transition ${workspaceOpen ? "rotate-180" : ""}`}
+            />
           </button>
+
+          {workspaceOpen && (
+            <div className="absolute left-4 right-4 top-[76px] z-30 overflow-hidden rounded-xl border border-white/10 bg-slate-900 p-1 shadow-2xl">
+              {workspaces.map((workspace) => {
+                const active = String(workspace.id) === String(workspaceId);
+
+                return (
+                  <button
+                    key={workspace.id}
+                    type="button"
+                    disabled={switchingWorkspace || active}
+                    onClick={() => {
+                      onWorkspaceChange(workspace);
+                      setWorkspaceOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${
+                      active
+                        ? "bg-indigo-500/10 text-indigo-300"
+                        : "text-slate-300 hover:bg-white/5"
+                    } disabled:cursor-not-allowed`}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-xs font-semibold text-indigo-300">
+                      {getInitials(workspace.name || "Workspace")}
+                    </div>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {workspace.name || "Untitled workspace"}
+                    </span>
+                    {active && <Check size={16} className="shrink-0" />}
+                    {switchingWorkspace && !active && (
+                      <Loader2 size={15} className="shrink-0 animate-spin text-slate-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
@@ -989,6 +1034,36 @@ let availableWorkspaces = extractWorkspaces(workspaceResponse);
     0
   );
 
+  async function handleWorkspaceChange(workspace) {
+    if (!workspace?.id || String(workspace.id) === String(workspaceId)) {
+      return;
+    }
+
+    try {
+      setSwitchingWorkspace(true);
+      setLoadError("");
+      setLinks([]);
+      setWorkspaceId(workspace.id);
+      setWorkspaceName(workspace.name || "My Workspace");
+      setSelectedAnalyticsLinkId("");
+      setSearchQuery("");
+      setActivePage("Overview");
+
+      const linksResponse = await getWorkspaceLinks(workspace.id, {
+        page: 1,
+        limit: 100,
+      });
+
+      setLinks(extractLinks(linksResponse).map(normalizeLink));
+      notify(`Switched to ${workspace.name || "workspace"}.`);
+    } catch (err) {
+      setLoadError(err.message || "Unable to switch workspace.");
+      notify(err.message || "Unable to switch workspace.", "error");
+    } finally {
+      setSwitchingWorkspace(false);
+    }
+  }
+
   async function handleCreateLink(payload) {
     if (!workspaceId) {
       throw new Error("No workspace is available. Reload the dashboard and try again.");
@@ -1115,6 +1190,10 @@ let availableWorkspaces = extractWorkspaces(workspaceResponse);
         activePage={activePage}
         setActivePage={setActivePage}
         workspaceName={workspaceName}
+        workspaces={workspaces}
+        workspaceId={workspaceId}
+        onWorkspaceChange={handleWorkspaceChange}
+        switchingWorkspace={switchingWorkspace}
         user={user}
         onLogout={handleLogout}
         loggingOut={loggingOut}

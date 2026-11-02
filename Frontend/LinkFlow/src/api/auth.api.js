@@ -37,9 +37,33 @@ export async function verifyEmail(verificationToken) {
   });
 }
 
-// Log out the current user
 export async function logoutUser() {
-  return apiRequest("/api/auth/logout", {
+  return apiRequest("/api/auth/Logout", {
     method: "POST",
+  });
+}
+
+
+export function resendVerificationEmail(email) {
+  return apiRequest("/api/auth/emailverification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+// Reset the user's password
+export async function resetPassword(payload) {
+  return apiRequest("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+
+// Send a password reset email
+export async function forgotPassword(email) {
+  return apiRequest("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
   });
 }

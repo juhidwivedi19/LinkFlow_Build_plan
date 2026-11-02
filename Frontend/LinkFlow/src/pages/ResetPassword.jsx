@@ -10,7 +10,7 @@ import {
   ArrowLeft,
   AlertCircle,
 } from "lucide-react";
-import { apiRequest } from "../api/client";
+import { resetPassword } from "../api/auth.api";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -75,13 +75,10 @@ export default function ResetPassword() {
     try {
       setLoading(true);
 
-      await apiRequest("/api/auth/reset-password", {
-        method: "POST",
-        body: JSON.stringify({
-          token,
-          password,
-        }),
-      });
+  await resetPassword({
+  resetToken: token,
+  newPassword: password,
+});
 
       setSuccess(true);
     } catch (err) {
