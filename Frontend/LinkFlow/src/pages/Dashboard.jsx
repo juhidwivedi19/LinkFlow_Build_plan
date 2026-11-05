@@ -39,7 +39,7 @@ import {
 import "./App.css";
 import Analytics from "./Analytics";
 import QRCodePage from "./QRCodePage";
-
+import ApiKeys from "./ApiKeys";
 
 const SHORT_BASE_URL = (
   import.meta.env.VITE_SHORT_BASE_URL ||
@@ -105,6 +105,8 @@ function extractWorkspaces(response) {
 
   return [];
 }
+
+
 
 function extractLinks(response) {
   if (Array.isArray(response)) return response;
@@ -1565,7 +1567,11 @@ let availableWorkspaces = extractWorkspaces(workspaceResponse);
   <QRCodePage links={links} />
 )}
 
-{!["Analytics", "QR Codes"].includes(activePage) &&
+{activePage === "API & Integrations" && !loading && !loadError && (
+  <ApiKeys workspaceId={workspaceId} />
+)}
+
+{!["Analytics", "QR Codes", "API & Integrations"].includes(activePage) &&
   pageDescriptions[activePage] && (
     <ComingSoonPage
       title={activePage}
